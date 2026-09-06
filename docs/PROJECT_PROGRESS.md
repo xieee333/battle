@@ -29,9 +29,12 @@
 - 新增“生成购物阶段配置”按钮：
   - 将区域草稿转换成运行时实际读取的 `data\vision\profile.json`。
   - 自动生成商店 7 槽、手牌 10 槽、战场 7 槽。
-  - 从购物阶段截图生成商店/手牌/战场锚点和购物场景样本。
-  - 已生成的配置可以被 `VisionProfileAssets.Load` 和布局识别器加载。
+- 从购物阶段截图生成商店/手牌/战场锚点和购物场景样本。
+- 已生成的配置可以被 `VisionProfileAssets.Load` 和布局识别器加载。
 - 原来的 `.calibration.json` 仍是区域草稿；生成 `profile.json` 后才会进入运行时识别链路。
+- 已用当前教程购物阶段截图完成一次实际标定：商店、手牌、战场、金币、本数共 5 个区域。
+- 已修正商店与战场区域的重叠：商店框覆盖当前商店卡行，战场框从商店下方开始。
+- 本次生成的运行时资产位于 `data\vision`，包括 `profile.json`、三个区域锚点和 `scenes\shopping.png`。
 
 ### 安全与测试
 
@@ -86,13 +89,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
 
 ## Git 接续说明
 
-当前目录原本的 `.git` 是指向旧电脑路径的 worktree 文件，旧路径不存在。重新初始化当前目录后，应该把本文件和源码一起提交。`dist`、`bin`、`obj` 等生成物已经由 `.gitignore` 排除；卡库运行数据也不应通过 Git 提交。
+当前目录原本的 `.git` 是指向旧电脑路径的 worktree 文件，旧路径不存在；现在已经重新初始化并接入远程仓库。`dist`、`bin`、`obj` 等生成物已经由 `.gitignore` 排除；卡库运行数据仍不通过 Git 提交。
 
-远程仓库地址尚未配置。拿到 GitHub/GitLab/自建 Git 服务的仓库地址后，在当前目录执行：
+当前远程仓库：`https://github.com/xieee333/battle.git`，主分支为 `main`。项目源码、测试和视觉标定资产已推送。
+
+如果另一台电脑需要继续，先执行：
 
 ```powershell
-git remote add origin <远程仓库地址>
-git branch -M main
-git push -u origin main
+git remote -v
+git pull --ff-only origin main
 ```
-
