@@ -240,7 +240,10 @@ public sealed partial class MainViewModel : ObservableObject
         _settings = settings;
         MinimumGold = settings.MinimumGold;
         ReservedHandSlots = settings.ReservedHandSlots;
-        ObservationMode = settings.ObservationMode;
+        // Starting a new app session must always be read-only.  Execution can
+        // still be enabled explicitly during this session, but a persisted
+        // flag must never silently re-enable input after a restart.
+        ObservationMode = true;
         LoadCatalogFromDatabase();
     }
 
