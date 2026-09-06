@@ -1,0 +1,38 @@
+<Window x:Class="BattlegroundsVisionAgent.App.Views.CapturePreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="游戏截图预览" Width="1100" Height="740" MinWidth="700" MinHeight="480" WindowStartupLocation="CenterOwner"
+        Background="{StaticResource WindowBackgroundBrush}" Foreground="{StaticResource TextPrimaryBrush}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,14">
+            <TextBlock Text="游戏截图 · 只读验证" FontSize="22" FontWeight="SemiBold"/>
+            <TextBlock Text="3 秒倒计时期间切换到炉石并保持游戏可见；此窗口不会点击游戏。截图成功不等于识别成功。" TextWrapping="Wrap" Margin="0,8,0,12"/>
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="CaptureButton" Content="3 秒后截图" Click="Capture_Click"/>
+                <Button x:Name="SaveButton" Content="保存 PNG" Click="Save_Click" IsEnabled="False"/>
+                <Button x:Name="OpenButton" Content="导入截图" Click="Open_Click"/>
+            </StackPanel>
+            <WrapPanel x:Name="CalibrationControls" IsEnabled="False" Margin="0,10,0,0">
+                <TextBlock Text="框选区域：" Margin="0,0,8,0"/>
+                <ComboBox x:Name="RegionChoice" Width="130" SelectedIndex="0" DisplayMemberPath="Value" SelectedValuePath="Key"/>
+                <Button Content="移除当前框" Click="RemoveRegion_Click"/>
+                <Button Content="保存校准草稿" Click="SaveCalibration_Click"/>
+                <Button Content="加载校准草稿" Click="LoadCalibration_Click"/>
+                <Button x:Name="BuildProfileButton" Content="生成购物阶段配置" Click="BuildProfile_Click"
+                        ToolTip="将商店、手牌和战场区域生成实际识别配置"/>
+            </WrapPanel>
+            <TextBlock x:Name="CalibrationStatus" Text="购物阶段：选择区域后在截图上拖动框选；完成商店、手牌、战场后可生成布局配置。" TextWrapping="Wrap" Margin="0,8,0,0"/>
+        </StackPanel>
+        <Border Grid.Row="1" Background="#080D18" BorderBrush="#607A9D" BorderThickness="1" CornerRadius="8">
+            <Viewbox Stretch="Uniform">
+                <Grid x:Name="ImageSurface" Width="1920" Height="1080">
+                    <Image x:Name="Preview" Stretch="Fill"/>
+                    <Canvas x:Name="RegionCanvas" Background="Transparent" ClipToBounds="True"
+                            MouseLeftButtonDown="Region_Down" MouseMove="Region_Move" MouseLeftButtonUp="Region_Up" LostMouseCapture="Region_Cancel"/>
+                </Grid>
+            </Viewbox>
+        </Border>
+        <TextBlock x:Name="Status" Grid.Row="2" Text="等待截图。无需 profile.json 即可验证截图功能。" TextWrapping="Wrap" Margin="0,12,0,0"/>
+    </Grid>
+</Window>

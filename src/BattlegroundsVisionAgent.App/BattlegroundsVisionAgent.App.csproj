@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BattlegroundsVisionAgent.Core\BattlegroundsVisionAgent.Core.csproj" />
+    <ProjectReference Include="..\BattlegroundsVisionAgent.Vision\BattlegroundsVisionAgent.Vision.csproj" />
+    <ProjectReference Include="..\BattlegroundsVisionAgent.Input\BattlegroundsVisionAgent.Input.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+</Project>

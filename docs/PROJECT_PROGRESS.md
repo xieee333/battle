@@ -1,0 +1,98 @@
+# 酒馆战棋视觉规则助手：项目接续记录
+
+更新时间：2026-09-06
+
+项目目录：`D:\代码\battlegrounds-vision-agent\.worktrees\vision-agent-v1`
+
+这份文件用于在另一台电脑上继续开发，记录当前完成度、已验证内容和下一步工作。
+
+## 当前已完成
+
+### 卡库与目标牌界面
+
+- 接入国服官网酒馆战棋公开数据同步流程。
+- 卡库使用本地 SQLite 保存，卡图保存在 `data\catalog\cards`。
+- 支持版本化卡库更新包，校验清单、数据库版本、图片路径和图片可解码性。
+- 主界面目标牌列表显示本地卡图。
+- 支持按名称或卡牌 ID 搜索。
+- 支持按酒馆本数筛选。
+- 支持本数从低到高、从高到低排序。
+- 修复深色背景下下拉框文字不可见的问题。
+
+### 截图与视觉校准
+
+- `WindowsFrameSource` 已改为从屏幕合成画面捕获炉石前台窗口，解决硬件渲染窗口 DC 读到旧画面的问题。
+- 炉石窗口通过进程名识别，避免把官网网页误认为游戏窗口。
+- “截图预览”支持 3 秒倒计时截图和导入 PNG。
+- 当前截图确认可以捕获到购物阶段画面。
+- 预览窗口支持框选：商店、手牌、战场、金币、本数、发现区域。
+- 新增“生成购物阶段配置”按钮：
+  - 将区域草稿转换成运行时实际读取的 `data\vision\profile.json`。
+  - 自动生成商店 7 槽、手牌 10 槽、战场 7 槽。
+  - 从购物阶段截图生成商店/手牌/战场锚点和购物场景样本。
+  - 已生成的配置可以被 `VisionProfileAssets.Load` 和布局识别器加载。
+- 原来的 `.calibration.json` 仍是区域草稿；生成 `profile.json` 后才会进入运行时识别链路。
+
+### 安全与测试
+
+- 观察模式不发送键鼠输入。
+- 非购物阶段、未知界面、金币/本数未知、卡牌未知或窗口失焦时应保持暂停。
+- 已加入区域校准、原生截图绑定、卡库界面和 profile 构建测试。
+- 最新整项目测试：144 项通过。
+- 最新发布构建已成功，输出：`dist\win-x64\BattlegroundsVisionAgent.App.exe`。
+
+## 当前仍未完成
+
+1. 数字模板采集：金币和酒馆本数目前只有区域框选，没有数字值模板，因此运行时会把它们视为未知并安全暂停。
+2. 真实卡牌识别验证：需要在多个购物阶段截图上验证卡图 ORB 特征和卡槽裁剪效果。
+3. 购物/战斗/发现阶段的多样本场景模板和稳定帧选择。
+4. 手牌、战场中的重叠卡牌和空槽识别优化。
+5. 使用观察模式完成一次完整的“识别—规划—重新识别—验证”回放闭环。
+6. 识别通过后，才考虑在用户明确启用的情况下测试真实输入；目前不要直接使用执行模式。
+
+## 在另一台电脑上继续
+
+在项目根目录运行 PowerShell：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-dev.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\verify.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1
+```
+
+如果系统已经有 .NET 9 SDK，也可以直接运行 `dotnet`；项目脚本优先使用项目内的 `tools\dotnet\dotnet.exe`。
+
+### 继续校准
+
+1. 打开发布目录中的 `BattlegroundsVisionAgent.App.exe`。
+2. 让炉石进入购物阶段并保持前台。
+3. 点击“截图预览”→“3 秒后截图”，或者导入已有购物阶段 PNG。
+4. 在截图上框选商店、手牌、战场；金币、本数可以同时框选。
+5. 点击“生成购物阶段配置”。
+6. 回到主界面，开启“观察模式 · 只记录”，勾选目标牌后再点击“开始运行”。
+
+当前这一步只验证布局和观察结果，不应期待程序已经能自动执行购买或刷新。
+
+## 重要文件
+
+- `src\BattlegroundsVisionAgent.App\Views\CapturePreviewWindow.xaml`：截图与校准界面。
+- `src\BattlegroundsVisionAgent.App\Views\CapturePreviewWindow.xaml.cs`：截图、框选和生成配置入口。
+- `src\BattlegroundsVisionAgent.Vision\Recognition\VisionProfileBuilder.cs`：从购物截图生成 `profile.json`。
+- `src\BattlegroundsVisionAgent.Vision\Recognition\VisionRecognitionPipeline.cs`：加载视觉 profile。
+- `src\BattlegroundsVisionAgent.Vision\Recognition\TemplateLayoutRecognizer.cs`：布局和槽位识别。
+- `src\BattlegroundsVisionAgent.Vision\Capture\WindowsFrameSource.cs`：Windows 炉石窗口截图。
+- `src\BattlegroundsVisionAgent.Vision\Catalog\BlizzardCatalogSyncService.cs`：国服卡库同步。
+- `tests\BattlegroundsVisionAgent.Vision.Tests\VisionProfileBuilderTests.cs`：配置生成和布局自检测试。
+
+## Git 接续说明
+
+当前目录原本的 `.git` 是指向旧电脑路径的 worktree 文件，旧路径不存在。重新初始化当前目录后，应该把本文件和源码一起提交。`dist`、`bin`、`obj` 等生成物已经由 `.gitignore` 排除；卡库运行数据也不应通过 Git 提交。
+
+远程仓库地址尚未配置。拿到 GitHub/GitLab/自建 Git 服务的仓库地址后，在当前目录执行：
+
+```powershell
+git remote add origin <远程仓库地址>
+git branch -M main
+git push -u origin main
+```
+

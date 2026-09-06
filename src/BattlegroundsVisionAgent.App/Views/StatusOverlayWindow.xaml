@@ -1,0 +1,19 @@
+<Window x:Class="BattlegroundsVisionAgent.App.Views.StatusOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="状态悬浮条" Width="510" Height="68" Top="16" Left="16"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False" Topmost="True"
+        Background="Transparent" AllowsTransparency="True" Focusable="False">
+    <Border Background="#E6101829" BorderBrush="#FF334155" BorderThickness="1" CornerRadius="8" Padding="10">
+        <DockPanel LastChildFill="True">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Command="{Binding PauseCommand}" Content="暂停" Padding="10,4" Margin="4,0" />
+                <Button Command="{Binding StopCommand}" Content="停止" Padding="10,4" Margin="4,0" Background="#991B1B" />
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="{Binding RunStatus, StringFormat=状态：{0}}" Foreground="White" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding LatestPlannedAction}" Foreground="#FFD1D5DB" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </DockPanel>
+    </Border>
+</Window>

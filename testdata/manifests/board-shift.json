@@ -1,0 +1,49 @@
+{
+  "name": "board-shift",
+  "reservedHandSlots": 2,
+  "minimumGold": 0,
+  "rules": [
+    {
+      "cardId": "CARD_SELL",
+      "normalAction": "PlayThenSell",
+      "tripleAction": "PlayThenSell",
+      "discoverPriority": 99,
+      "protectedOnBoard": false
+    }
+  ],
+  "expectedActions": ["Sell:CARD_SELL"],
+  "frames": [
+    {
+      "name": "full-hand-and-board",
+      "timestampMs": 0,
+      "layoutVersion": 10,
+      "gamePhase": "Shopping",
+      "confidence": 0.99,
+      "gold": 8,
+      "tavernTier": 3,
+      "hand": [{ "cardId": "HAND_KEEP", "slotIndex": 0 }],
+      "board": [
+        { "cardId": "KEEP_A", "slotIndex": 0 },
+        { "cardId": "CARD_SELL", "slotIndex": 1 }
+      ],
+      "handCapacity": 2,
+      "boardCapacity": 7
+    },
+    {
+      "name": "remaining-board-shifted",
+      "timestampMs": 500,
+      "layoutVersion": 11,
+      "gamePhase": "Shopping",
+      "confidence": 0.99,
+      "gold": 10,
+      "tavernTier": 3,
+      "hand": [{ "cardId": "HAND_KEEP", "slotIndex": 0 }],
+      "board": [
+        { "cardId": "KEEP_A", "slotIndex": 0 },
+        { "cardId": "KEEP_B", "slotIndex": 1 }
+      ],
+      "handCapacity": 2,
+      "boardCapacity": 7
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+.superpowers/
+.worktrees/
+.git.worktree-reference.bak
+build/
+dist/
+logs/
+captures/
+models/cache/
+tools/dotnet/
+*.log
+**/bin/
+**/obj/

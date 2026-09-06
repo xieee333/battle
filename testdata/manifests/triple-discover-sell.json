@@ -1,0 +1,107 @@
+{
+  "name": "triple-discover-sell",
+  "reservedHandSlots": 2,
+  "minimumGold": 0,
+  "rules": [
+    {
+      "cardId": "CARD_A",
+      "normalAction": "PlayThenSell",
+      "tripleAction": "PlayThenSell",
+      "discoverPriority": 99,
+      "protectedOnBoard": false
+    },
+    {
+      "cardId": "CARD_B",
+      "normalAction": "Keep",
+      "tripleAction": "Keep",
+      "discoverPriority": 1,
+      "protectedOnBoard": true
+    }
+  ],
+  "expectedActions": [
+    "Buy:CARD_A",
+    "Play:CARD_A:Golden",
+    "Play:TRIPLE_REWARD",
+    "ChooseDiscover:CARD_B",
+    "Sell:CARD_A"
+  ],
+  "frames": [
+    {
+      "name": "shop-target",
+      "timestampMs": 0,
+      "layoutVersion": 1,
+      "gamePhase": "Shopping",
+      "confidence": 0.99,
+      "gold": 10,
+      "tavernTier": 2,
+      "shop": [{ "cardId": "CARD_A", "slotIndex": 0 }],
+      "handCapacity": 10,
+      "boardCapacity": 7
+    },
+    {
+      "name": "golden-in-hand",
+      "timestampMs": 500,
+      "layoutVersion": 2,
+      "gamePhase": "Shopping",
+      "confidence": 0.99,
+      "gold": 7,
+      "tavernTier": 2,
+      "hand": [{ "cardId": "CARD_A", "slotIndex": 0, "isGolden": true }],
+      "handCapacity": 10,
+      "boardCapacity": 7
+    },
+    {
+      "name": "triple-reward",
+      "timestampMs": 1000,
+      "layoutVersion": 3,
+      "gamePhase": "Shopping",
+      "confidence": 0.99,
+      "gold": 7,
+      "tavernTier": 2,
+      "hand": [{ "cardId": "TRIPLE_REWARD", "slotIndex": 0 }],
+      "board": [{ "cardId": "CARD_A", "slotIndex": 0 }],
+      "hasPendingTripleReward": true,
+      "handCapacity": 10,
+      "boardCapacity": 7
+    },
+    {
+      "name": "discover-card-b",
+      "timestampMs": 1500,
+      "layoutVersion": 4,
+      "gamePhase": "Discover",
+      "confidence": 0.99,
+      "gold": 7,
+      "tavernTier": 2,
+      "discover": [{ "cardId": "CARD_B", "slotIndex": 0 }],
+      "board": [{ "cardId": "CARD_A", "slotIndex": 0 }],
+      "handCapacity": 10,
+      "boardCapacity": 7
+    },
+    {
+      "name": "board-needs-space",
+      "timestampMs": 2000,
+      "layoutVersion": 5,
+      "gamePhase": "Shopping",
+      "confidence": 0.99,
+      "gold": 7,
+      "tavernTier": 2,
+      "hand": [{ "cardId": "CARD_B", "slotIndex": 0 }],
+      "board": [{ "cardId": "CARD_A", "slotIndex": 1 }],
+      "handCapacity": 2,
+      "boardCapacity": 7
+    },
+    {
+      "name": "after-sell-repositioned",
+      "timestampMs": 2500,
+      "layoutVersion": 6,
+      "gamePhase": "Shopping",
+      "confidence": 0.99,
+      "gold": 9,
+      "tavernTier": 2,
+      "hand": [{ "cardId": "CARD_B", "slotIndex": 0 }],
+      "board": [{ "cardId": "KEEP_0", "slotIndex": 0 }],
+      "handCapacity": 2,
+      "boardCapacity": 7
+    }
+  ]
+}

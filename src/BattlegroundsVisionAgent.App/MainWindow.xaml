@@ -1,0 +1,316 @@
+<Window x:Class="BattlegroundsVisionAgent.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:BattlegroundsVisionAgent.App.ViewModels"
+        Title="酒馆战棋视觉规则助手" Height="820" Width="1240" MinHeight="700" MinWidth="1080"
+        WindowStartupLocation="CenterScreen" Background="{StaticResource WindowBackgroundBrush}"
+        Foreground="{StaticResource TextPrimaryBrush}"
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
+    <Window.Resources>
+        <Style x:Key="EyebrowText" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Margin" Value="0,0,0,5" />
+        </Style>
+        <Style x:Key="PageTitleText" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="25" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        </Style>
+        <Style x:Key="SectionTitleText" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        </Style>
+        <Style x:Key="FieldLabelText" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,18,0" />
+        </Style>
+        <Style x:Key="CaptionText" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="16" Padding="22" Margin="0,0,0,18">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="VISION CONTROL / BATTLEGROUNDS" Style="{StaticResource EyebrowText}" />
+                    <TextBlock Text="酒馆战棋视觉规则助手" Style="{StaticResource PageTitleText}" />
+                    <TextBlock Text="配置目标牌规则，先观察、再执行；所有高风险动作都受安全条件约束。"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,7,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Border Background="{StaticResource SurfaceElevatedBrush}" BorderBrush="{StaticResource BorderStrongBrush}"
+                                BorderThickness="1" CornerRadius="16" Padding="12,7">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="8" Height="8" Fill="{StaticResource AccentBrush}" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding RunStatus}" Foreground="{StaticResource TextSecondaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <ToggleButton IsChecked="{Binding ObservationMode}" Content="观察模式 · 只记录" ToolTip="开启后只记录计划，不发送键鼠输入。" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,13,0,0">
+                        <Button Click="CapturePreview_Click" Content="截图预览" />
+                        <Button Click="UpdateCatalog_Click" Content="更新卡库" ToolTip="导入经过校验的版本化卡库更新包。" />
+                        <Button Click="SyncOfficialCatalog_Click" Content="同步国服卡库" ToolTip="从国服官网同步酒馆战棋随从，无需账号或密钥。" />
+                        <Button Command="{Binding StartCommand}" Content="开始运行" Background="{StaticResource AccentStrongBrush}"
+                                BorderBrush="{StaticResource AccentBrush}" />
+                        <Button Command="{Binding PauseCommand}" Content="暂停" />
+                        <Button Command="{Binding StopCommand}" Content="紧急停止" Background="{StaticResource DangerBrush}"
+                                BorderBrush="#E2788B" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="390" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="14" Padding="16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="目标牌" Style="{StaticResource SectionTitleText}" />
+                            <TextBlock Text="从识别卡库中选择需要跟踪的目标" Style="{StaticResource CaptionText}" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Border Grid.Column="1" HorizontalAlignment="Right" Background="{StaticResource SurfaceElevatedBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="9,5">
+                            <TextBlock Text="规则编辑" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                        </Border>
+                    </Grid>
+                    <StackPanel Grid.Row="1" Margin="0,12,0,10">
+                        <TextBlock Text="搜索名称或卡牌 ID" Style="{StaticResource CaptionText}" Margin="0,0,0,5" />
+                        <TextBox Text="{Binding CardSearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="按名称或卡牌 ID 搜索" MinHeight="34" />
+                        <DockPanel Margin="0,8,0,6">
+                        <Button DockPanel.Dock="Right" Content="{Binding TierSortText}" Command="{Binding ToggleTierSortCommand}"
+                                ToolTip="点击切换本数升序 / 降序" MinWidth="88" Margin="8,0,0,0" />
+                        <ComboBox ItemsSource="{Binding TierFilters}" SelectedItem="{Binding SelectedTier}" MinHeight="36" ToolTip="按酒馆本数筛选">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Foreground="#F4F7FB">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="{Binding StringFormat={}{0} 本}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding}" Value="0">
+                                                        <Setter Property="Text" Value="全部本数" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        </DockPanel>
+                        <TextBlock Text="{Binding FilterResultText}" Style="{StaticResource CaptionText}" />
+                    </StackPanel>
+                    <ListBox Grid.Row="2" ItemsSource="{Binding FilteredCatalogCards}" SelectedItem="{Binding SelectedCard}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:CardRuleEditorViewModel}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="76" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox IsChecked="{Binding IsTargeted}" VerticalAlignment="Top" Margin="1,2,0,0"
+                                              ToolTip="将此卡加入目标规则" />
+                                    <Grid Grid.Column="1" Width="70" Height="96" Margin="0,0,6,0">
+                                        <TextBlock Text="暂无图片" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{StaticResource TextMutedBrush}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding CardImage}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <Image Source="{Binding CardImage}" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality">
+                                            <Image.ToolTip>
+                                                <Image Source="{Binding CardImage}" Width="240" Stretch="Uniform" />
+                                            </Image.ToolTip>
+                                        </Image>
+                                    </Grid>
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding NameZhCn}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding CardId}" Style="{StaticResource CaptionText}" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <Border Grid.Column="3" Background="{StaticResource SurfaceInputBrush}" CornerRadius="8"
+                                            Padding="7,4" VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding Tier, StringFormat=本{0}}" Style="{StaticResource CaptionText}" />
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Border Grid.Row="3" Background="{StaticResource SurfaceInputBrush}" CornerRadius="10" Padding="10" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="目录状态" Style="{StaticResource CaptionText}" />
+                            <TextBlock Text="{Binding CatalogStatusText}" Margin="0,4,0,0" />
+                            <TextBlock Text="{Binding CatalogOperationStatus}" Style="{StaticResource CaptionText}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="规则工作区" Style="{StaticResource SectionTitleText}" />
+                            <TextBlock Text="为当前目标牌定义购买、三连、发现与保护策略" Style="{StaticResource CaptionText}" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Border HorizontalAlignment="Right" Background="{StaticResource SurfaceElevatedBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="10,5">
+                            <TextBlock Text="{Binding SelectedCard.CardId, TargetNullValue=尚未选择目标}" Foreground="{StaticResource TextSecondaryBrush}" />
+                        </Border>
+                    </Grid>
+
+                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="14" Padding="20" Margin="0,0,0,14">
+                        <StackPanel DataContext="{Binding SelectedCard}">
+                            <TextBlock Text="单牌规则" Style="{StaticResource SectionTitleText}" />
+                            <TextBlock Text="{Binding NameZhCn, TargetNullValue=请先从左侧选择一张已加载的卡牌}"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0" />
+                            <Grid Margin="0,18,0,0" IsEnabled="{Binding DataContext.HasSelectedCard, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="购买上限" Style="{StaticResource FieldLabelText}" />
+                                <StackPanel Grid.Column="1" Margin="0,0,0,13">
+                                    <TextBox Text="{Binding PurchaseLimitText, UpdateSourceTrigger=PropertyChanged}" ToolTip="输入正整数，或填“不限”" MinHeight="38" />
+                                    <TextBlock Text="{Binding PurchaseLimitValidationMessage}" Foreground="#F28A9A" FontSize="12" Margin="0,5,0,0" />
+                                </StackPanel>
+                                <TextBlock Grid.Row="1" Text="普通行动" Style="{StaticResource FieldLabelText}" />
+                                <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding DataContext.CardActions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          SelectedItem="{Binding NormalAction}" Margin="0,0,0,13" MinHeight="38" />
+                                <TextBlock Grid.Row="2" Text="三连后行动" Style="{StaticResource FieldLabelText}" />
+                                <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding DataContext.CardActions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          SelectedItem="{Binding TripleAction}" Margin="0,0,0,13" MinHeight="38" />
+                                <TextBlock Grid.Row="3" Text="发现优先级" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding DiscoverPriority, UpdateSourceTrigger=PropertyChanged}" MinHeight="38" Margin="0,0,0,13" />
+                                <TextBlock Grid.Row="4" Text="场上保护" Style="{StaticResource FieldLabelText}" />
+                                <CheckBox Grid.Row="4" Grid.Column="1" IsChecked="{Binding ProtectedOnBoard}" Content="不作为常规卖出目标"
+                                          VerticalAlignment="Center" Margin="0,0,0,4" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1" CornerRadius="14" Padding="20">
+                            <StackPanel>
+                                <TextBlock Text="优先级与保护" Style="{StaticResource SectionTitleText}" />
+                                <TextBlock Text="目标牌的策略设置会与全局安全规则叠加" Style="{StaticResource CaptionText}" TextWrapping="Wrap" Margin="0,5,0,14" />
+                                <Border Background="{StaticResource SurfaceInputBrush}" CornerRadius="10" Padding="12">
+                                    <StackPanel>
+                                        <TextBlock Text="当前选择" Style="{StaticResource CaptionText}" />
+                                        <TextBlock Text="{Binding SelectedCard.NameZhCn, TargetNullValue=未选择}" Margin="0,4,0,0" FontWeight="SemiBold" />
+                                        <TextBlock Text="勾选左侧复选框后，该牌才会参与规划。" Style="{StaticResource CaptionText}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                BorderThickness="1" CornerRadius="14" Padding="20">
+                            <StackPanel>
+                                <TextBlock Text="全局安全规则" Style="{StaticResource SectionTitleText}" />
+                                <TextBlock Text="执行前必须满足的底线条件" Style="{StaticResource CaptionText}" Margin="0,5,0,14" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="最低保留金币" Style="{StaticResource FieldLabelText}" />
+                                    <TextBox Grid.Column="1" Text="{Binding MinimumGold, UpdateSourceTrigger=PropertyChanged}" MinHeight="36" Margin="0,0,0,10" />
+                                    <TextBlock Grid.Row="1" Text="预留手牌位" Style="{StaticResource FieldLabelText}" />
+                                    <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ReservedHandSlots, UpdateSourceTrigger=PropertyChanged}" MinHeight="36" Margin="0,0,0,10" />
+                                    <TextBlock Grid.Row="2" Text="执行资格" Style="{StaticResource FieldLabelText}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ExecutionStatusText}"
+                                               Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="12" Padding="14,11" Margin="0,18,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Ellipse Width="8" Height="8" Fill="{StaticResource AccentBrush}" Margin="0,0,9,0" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="状态" Foreground="{StaticResource TextMutedBrush}" />
+                    <TextBlock Text="{Binding RunStatus}" FontWeight="SemiBold" Margin="8,0,24,0" />
+                    <TextBlock Text="最新计划" Foreground="{StaticResource TextMutedBrush}" />
+                    <TextBlock Text="{Binding LatestPlannedAction}" Margin="8,0,0,0" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="F7 暂停/继续  ·  F8 紧急停止" Foreground="{StaticResource WarningBrush}" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
