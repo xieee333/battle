@@ -26,14 +26,26 @@ public sealed class FrameStabilityDetectorTests
         var detector = new FrameStabilityDetector();
         var first = GrayFrame.FromBytes(2, 2, 0, 0, 0, 0);
         var near = GrayFrame.FromBytes(2, 2, 1, 1, 1, 1);
-        var threshold = GrayFrame.FromBytes(2, 2, 3, 3, 3, 3);
+        var threshold = GrayFrame.FromBytes(2, 2, 9, 9, 9, 9);
 
         detector.Observe(first, TimeSpan.Zero);
         detector.Observe(near, TimeSpan.FromMilliseconds(60));
         var result = detector.Observe(threshold, TimeSpan.FromMilliseconds(120));
 
         Assert.False(result.IsStable);
-        Assert.Equal(2.0, result.AverageAbsoluteDifference);
+        Assert.Equal(FrameStabilityDetector.DifferenceThreshold, result.AverageAbsoluteDifference);
+    }
+
+    [Fact]
+    public void Observe_AllowsSmallCompositorDriftToReachStableState()
+    {
+        var detector = new FrameStabilityDetector();
+        var first = GrayFrame.FromBytes(2, 2, 10, 10, 10, 10);
+        var drifted = GrayFrame.FromBytes(2, 2, 16, 16, 16, 16);
+
+        Assert.False(detector.Observe(first, TimeSpan.Zero).IsStable);
+        Assert.False(detector.Observe(drifted, TimeSpan.FromMilliseconds(60)).IsStable);
+        Assert.True(detector.Observe(drifted, TimeSpan.FromMilliseconds(180)).IsStable);
     }
 
     [Fact]

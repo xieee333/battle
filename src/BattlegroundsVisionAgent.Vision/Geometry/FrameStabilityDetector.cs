@@ -38,7 +38,12 @@ public readonly record struct FrameStabilityResult(bool IsStable, double Average
 
 public sealed class FrameStabilityDetector
 {
-    public const double DifferenceThreshold = 2.0;
+    // A live Hearthstone window is composited with small background, glow and
+    // timer animations even when the actionable layout has settled.  A strict
+    // full-frame threshold of 2 made real shopping screens wait forever.
+    // Keep the threshold low enough to reject a real scene transition while
+    // tolerating normal compositor drift.
+    public const double DifferenceThreshold = 8.0;
     public static readonly TimeSpan RequiredStableDuration = TimeSpan.FromMilliseconds(120);
 
     private GrayFrame? _previous;
