@@ -269,6 +269,10 @@ public sealed partial class MainViewModel : ObservableObject
             CatalogVersionText = $"v{snapshot.Metadata.Version}";
             CatalogOperationStatus = $"已加载 · 更新于 {snapshot.Metadata.UpdatedAt:yyyy-MM-dd HH:mm}";
         }
+        if (RunStatus == "未加载卡库")
+        {
+            RunStatus = IsCatalogLoaded ? "已加载卡库，待选择目标牌" : "未加载卡库";
+        }
         OnPropertyChanged(nameof(CatalogStatusText));
     }
 
