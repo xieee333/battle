@@ -41,6 +41,7 @@ public partial class CapturePreviewWindow : System.Windows.Window
         SaveButton.IsEnabled = false;
         CalibrationControls.IsEnabled = false;
         BuildProfileButton.IsEnabled = false;
+        AnalyzeButton.IsEnabled = false;
         OpenButton.IsEnabled = false;
         _png = null;
         Preview.Source = null;
@@ -100,6 +101,7 @@ public partial class CapturePreviewWindow : System.Windows.Window
         CalibrationControls.IsEnabled = true;
         BuildProfileButton.IsEnabled = true;
         SaveButton.IsEnabled = true;
+        AnalyzeButton.IsEnabled = File.Exists(Path.Combine(AppContext.BaseDirectory, "data", "vision", "profile.json"));
         DrawRegions();
     }
 
@@ -114,6 +116,48 @@ public partial class CapturePreviewWindow : System.Windows.Window
             Status.Text = $"已导入 {_imageWidth} × {_imageHeight} 截图；请使用酒馆购物阶段画面进行校准。";
         }
         catch (Exception exception) { Status.Text = $"导入失败：{exception.Message}"; }
+    }
+
+    private void Analyze_Click(object sender, RoutedEventArgs e)
+    {
+        if (_png is null)
+        {
+            Status.Text = "请先截取或导入 PNG 截图。";
+            return;
+        }
+
+        var profilePath = Path.Combine(AppContext.BaseDirectory, "data", "vision", "profile.json");
+        var catalogPath = Path.Combine(AppContext.BaseDirectory, "data", "catalog", "catalog.db");
+        if (!File.Exists(profilePath))
+        {
+            Status.Text = "尚未生成 profile.json，请先完成商店、手牌、战场框选并点击“生成购物阶段配置”。";
+            return;
+        }
+
+        if (!File.Exists(catalogPath))
+        {
+            Status.Text = "尚未找到本地卡库 catalog.db，暂时只能完成布局校准。";
+            return;
+        }
+
+        try
+        {
+            using var screenshot = Cv2.ImDecode(_png, ImreadModes.Color);
+            using var pipeline = VisionRecognitionPipeline.Load(profilePath, catalogPath);
+            var result = pipeline.Recognizer.Recognize(screenshot, DateTimeOffset.Now);
+            var scene = result.Scene.GamePhase == BattlegroundsVisionAgent.Core.Domain.GamePhase.Unknown
+                ? $"未知（{result.Scene.Confidence:P0}）"
+                : $"{result.Scene.GamePhase}（{result.Scene.Confidence:P0}）";
+            var knownCards = result.Cards.Count(card => card.Observation.CardId != "UNKNOWN");
+            var gold = result.Gold.IsKnown ? result.Gold.Value!.Value.ToString() : "未知";
+            var tier = result.TavernTier.IsKnown ? result.TavernTier.Value!.Value.ToString() : "未知";
+            Status.Text = $"离线识别完成：场景 {scene}；金币 {gold}；本数 {tier}；已识别卡槽 {knownCards}/{result.Cards.Count}。" +
+                          (result.Snapshot.IsActionable ? "当前快照可行动。" : "当前快照仍安全阻断，不会发送输入。");
+        }
+        catch (Exception exception)
+        {
+            Status.Text = $"离线识别失败：{exception.Message}";
+        }
     }
 
     private void Region_Down(object sender, MouseButtonEventArgs e)
@@ -231,6 +275,7 @@ public partial class CapturePreviewWindow : System.Windows.Window
                               ? "金币和本数区域已保存；仍需数字模板后才能放行自动操作。"
                               : "金币/本数区域未完整标定，运行会保持安全暂停。") +
                           $" 配置位置：{result.ProfilePath}";
+            AnalyzeButton.IsEnabled = true;
         }
         catch (Exception exception) { Status.Text = $"生成配置失败：{exception.Message}"; }
     }

@@ -12,6 +12,8 @@
                 <Button x:Name="CaptureButton" Content="3 秒后截图" Click="Capture_Click"/>
                 <Button x:Name="SaveButton" Content="保存 PNG" Click="Save_Click" IsEnabled="False"/>
                 <Button x:Name="OpenButton" Content="导入截图" Click="Open_Click"/>
+                <Button x:Name="AnalyzeButton" Content="离线识别当前截图" Click="Analyze_Click" IsEnabled="False"
+                        ToolTip="不操作游戏，直接用当前 PNG 运行一次视觉识别"/>
             </StackPanel>
             <WrapPanel x:Name="CalibrationControls" IsEnabled="False" Margin="0,10,0,0">
                 <TextBlock Text="框选区域：" Margin="0,0,8,0"/>
