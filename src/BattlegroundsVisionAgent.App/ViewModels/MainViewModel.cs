@@ -335,6 +335,14 @@ public sealed partial class MainViewModel : ObservableObject
                 _runState.Pause();
                 RunStatus = "需要人工确认";
             }
+            else if (result.Action is StopAction { Reason: "shopping-data-unknown" })
+            {
+                RunStatus = "购物阶段，等待数字/卡牌识别";
+            }
+            else if (result.Action is StopAction { Reason: "scene-not-actionable" })
+            {
+                RunStatus = "等待可操作阶段";
+            }
             else if (result.Action is StopAction or PauseForUserAction || (result.Sent && !result.Verified))
             {
                 _runState.Pause();
@@ -408,6 +416,8 @@ public sealed partial class MainViewModel : ObservableObject
         SellAction sell => $"计划卖出：{sell.CardId}",
         ChooseDiscoverAction choose => $"计划发现：{choose.CardId}",
         PauseForUserAction pause => $"等待确认：{pause.Reason}",
+        StopAction { Reason: "shopping-data-unknown" } => "购物阶段已识别，等待数字/卡牌模板",
+        StopAction { Reason: "scene-not-actionable" } => "等待可操作阶段",
         StopAction stop => $"停止：{stop.Reason}",
         NoneAction none => $"等待：{none.Reason}",
         _ => "等待"

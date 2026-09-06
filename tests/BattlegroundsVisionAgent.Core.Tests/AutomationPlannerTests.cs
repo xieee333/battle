@@ -219,7 +219,7 @@ public sealed class AutomationPlannerTests
 
         var action = new AutomationPlanner().Plan(snapshot, SnapshotFactory.Settings());
 
-        Assert.Equal(new StopAction(1, "scene-not-actionable"), action);
+        Assert.Equal(new StopAction(1, "shopping-data-unknown"), action);
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public sealed class AutomationPlannerTests
 
         var action = new AutomationPlanner().Plan(snapshot, SnapshotFactory.Settings(SnapshotFactory.Keep("CARD_A")));
 
-        Assert.Equal(new StopAction(1, "scene-not-actionable"), action);
+        Assert.Equal(new StopAction(1, "shopping-data-unknown"), action);
     }
 
     [Fact]

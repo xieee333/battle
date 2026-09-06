@@ -48,7 +48,10 @@ public sealed class AutomationPlanner
 
         if (!snapshot.IsActionable)
         {
-            return new StopAction(snapshot.LayoutVersion, "scene-not-actionable");
+            var reason = snapshot.GamePhase == GamePhase.Shopping
+                ? "shopping-data-unknown"
+                : "scene-not-actionable";
+            return new StopAction(snapshot.LayoutVersion, reason);
         }
 
         if (snapshot.DiscoverOptions.Count > 0)

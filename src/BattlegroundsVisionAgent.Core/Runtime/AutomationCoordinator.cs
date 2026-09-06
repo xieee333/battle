@@ -170,6 +170,13 @@ public sealed class AutomationCoordinator
             && _runState.Status == RunStatus.Running)
         {
             var result = await TickAsync(cancellationToken).ConfigureAwait(false);
+            if (IsPassiveSceneStop(result.Action))
+            {
+                if (_options.TickInterval > TimeSpan.Zero)
+                    await Task.Delay(_options.TickInterval, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
             if (result.Action is StopAction or PauseForUserAction
                 || (result.Sent && !result.Verified))
             {
@@ -182,6 +189,9 @@ public sealed class AutomationCoordinator
             }
         }
     }
+
+    private static bool IsPassiveSceneStop(AutomationAction action) =>
+        action is StopAction { Reason: "scene-not-actionable" or "shopping-data-unknown" };
 
     private AutomationAction Plan(GameSnapshot snapshot)
     {

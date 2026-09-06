@@ -104,7 +104,83 @@ public sealed class AutomationCoordinatorTests
         Assert.Empty(executor.Actions);
     }
 
+    [Fact]
+    public async Task RunAsync_WaitsThroughNonActionableScenesInsteadOfStopping()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var source = new SequenceSource(
+        [
+            new GameSnapshot(1, 0.99, DateTimeOffset.UnixEpoch, GamePhase.Combat, null, null,
+                [], [], [], [], 0, 0, false, false),
+            SnapshotFactory.Shopping(layoutVersion: 2)
+        ]);
+        var coordinator = new AutomationCoordinator(
+            source,
+            new AutomationPlanner(),
+            new ActionVerifier(),
+            () => SnapshotFactory.Settings(),
+            new RunState(RunStatus.Running),
+            options: new AutomationCoordinatorOptions
+            {
+                ObservationMode = true,
+                TickInterval = TimeSpan.Zero
+            });
+        var tickCount = 0;
+        coordinator.TickCompleted += _ =>
+        {
+            if (++tickCount == 2)
+                cancellation.Cancel();
+        };
+
+        await coordinator.RunAsync(cancellation.Token);
+
+        Assert.Equal(2, tickCount);
+    }
+
+    [Fact]
+    public async Task RunAsync_WaitsThroughIncompleteShoppingDataInsteadOfStopping()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var source = new SequenceSource(
+        [
+            SnapshotFactory.Shopping(layoutVersion: 1, hasUnknownBlockingUi: true),
+            SnapshotFactory.Shopping(layoutVersion: 2)
+        ]);
+        var coordinator = new AutomationCoordinator(
+            source,
+            new AutomationPlanner(),
+            new ActionVerifier(),
+            () => SnapshotFactory.Settings(),
+            new RunState(RunStatus.Running),
+            options: new AutomationCoordinatorOptions
+            {
+                ObservationMode = true,
+                TickInterval = TimeSpan.Zero
+            });
+        var tickCount = 0;
+        coordinator.TickCompleted += _ =>
+        {
+            if (++tickCount == 2)
+                cancellation.Cancel();
+        };
+
+        await coordinator.RunAsync(cancellation.Token);
+
+        Assert.Equal(2, tickCount);
+    }
+
     private sealed class QueueSource(IReadOnlyList<GameSnapshot> snapshots) : IAutomationSnapshotSource
+    {
+        private readonly Queue<GameSnapshot> _snapshots = new(snapshots);
+
+        public Task<GameSnapshot> CaptureStableAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(_snapshots.Dequeue());
+        }
+    }
+
+    private sealed class SequenceSource(IReadOnlyList<GameSnapshot> snapshots) : IAutomationSnapshotSource
     {
         private readonly Queue<GameSnapshot> _snapshots = new(snapshots);
 
