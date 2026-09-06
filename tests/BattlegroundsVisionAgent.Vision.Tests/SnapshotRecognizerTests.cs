@@ -54,6 +54,39 @@ public sealed class SnapshotRecognizerTests
     }
 
     [Fact]
+    public void SceneRecognizer_ToleratesSmallAnimatedOverlayOnSameScene()
+    {
+        using var template = new Mat(160, 240, MatType.CV_8UC1, Scalar.All(30));
+        Cv2.Rectangle(template, new Rect(20, 20, 200, 110), Scalar.All(150), 4);
+        Cv2.Line(template, new Point(40, 140), new Point(210, 40), Scalar.All(220), 3);
+        using var liveFrame = template.Clone();
+        Cv2.Rectangle(liveFrame, new Rect(185, 0, 55, 24), Scalar.All(255), -1);
+
+        var scene = new SceneRecognizer([
+            new SceneTemplate(GamePhase.Shopping, PerceptualHash.Create(template))
+        ]).Recognize(liveFrame);
+
+        Assert.True(scene.GamePhase == GamePhase.Shopping, $"Scene confidence was {scene.Confidence:F3}.");
+        Assert.True(scene.Confidence >= SceneRecognizer.MinimumConfidence);
+    }
+
+    [Fact]
+    public void SceneRecognizer_RejectsSubstantiallyDifferentScene()
+    {
+        using var template = new Mat(160, 240, MatType.CV_8UC1, Scalar.All(30));
+        Cv2.Rectangle(template, new Rect(20, 20, 200, 110), Scalar.All(150), 4);
+        using var differentFrame = new Mat(160, 240, MatType.CV_8UC1, Scalar.All(220));
+        Cv2.Circle(differentFrame, new Point(120, 80), 55, Scalar.All(20), -1);
+
+        var scene = new SceneRecognizer([
+            new SceneTemplate(GamePhase.Shopping, PerceptualHash.Create(template))
+        ]).Recognize(differentFrame);
+
+        Assert.Equal(GamePhase.Unknown, scene.GamePhase);
+        Assert.True(scene.Confidence < SceneRecognizer.MinimumConfidence);
+    }
+
+    [Fact]
     public void Recognize_AggregatesInjectedResultsIntoShoppingSnapshot()
     {
         using var frame = new Mat(1080, 1920, MatType.CV_8UC1, Scalar.All(40));

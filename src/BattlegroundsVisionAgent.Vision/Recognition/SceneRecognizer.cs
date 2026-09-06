@@ -15,6 +15,13 @@ public sealed record SceneTemplate(GamePhase GamePhase, ulong PerceptualHash);
 
 public sealed class SceneRecognizer : ISceneRecognizer
 {
+    // A live Hearthstone scene changes continuously: the timer, card art,
+    // glow effects and board animations can all change while the phase stays
+    // the same.  A 0.92 full-frame hash threshold rejected those legitimate
+    // shopping frames.  Keep the threshold conservative enough to reject a
+    // substantially different screen while tolerating normal compositor drift.
+    public const double MinimumConfidence = 0.74;
+
     private readonly IReadOnlyList<SceneTemplate> _templates;
     public SceneRecognizer(IEnumerable<SceneTemplate>? templates = null) => _templates = templates?.ToArray() ?? [];
 
@@ -26,6 +33,8 @@ public sealed class SceneRecognizer : ISceneRecognizer
         var hash = PerceptualHash.Create(frame);
         var best = _templates.Select(template => new { template, confidence = 1 - System.Numerics.BitOperations.PopCount(hash ^ template.PerceptualHash) / 64d })
             .OrderByDescending(match => match.confidence).First();
-        return best.confidence >= 0.92 ? new SceneRecognition(best.template.GamePhase, best.confidence) : new SceneRecognition(GamePhase.Unknown, best.confidence);
+        return best.confidence >= MinimumConfidence
+            ? new SceneRecognition(best.template.GamePhase, best.confidence)
+            : new SceneRecognition(GamePhase.Unknown, best.confidence);
     }
 }
