@@ -42,6 +42,24 @@ public sealed class PurchaseEventDetectorTests
     }
 
     [Fact]
+    public void Observe_ConfirmsDiscountedTwoGoldPurchase()
+    {
+        using var beforeFrame = Frame(shop: 30, hand: 30, board: 30);
+        using var afterFrame = Frame(shop: 220, hand: 220, board: 30);
+        using var detector = new PurchaseEventDetector();
+
+        detector.Observe(beforeFrame, Result(DateTimeOffset.UnixEpoch, 9));
+        var evidence = detector.Observe(
+            afterFrame,
+            Result(DateTimeOffset.UnixEpoch.AddMilliseconds(700), 7));
+
+        Assert.NotNull(evidence);
+        Assert.Equal(PurchaseEventKind.ConfirmedPurchase, evidence.Kind);
+        Assert.Equal(2, evidence.GoldSpent);
+        Assert.Equal(1, evidence.PurchaseCount);
+    }
+
+    [Fact]
     public void ObserveRecognizesPurchaseThatWasPlayedBeforeNextFrame()
     {
         using var beforeFrame = Frame(shop: 30, hand: 30, board: 30);

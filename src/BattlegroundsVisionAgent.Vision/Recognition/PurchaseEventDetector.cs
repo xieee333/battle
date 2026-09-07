@@ -29,8 +29,8 @@ public sealed record PurchaseEvidence(
     double Confidence,
     string Reason)
 {
-    public int PurchaseCount => GoldSpent is >= 3
-        ? Math.Max(1, (GoldSpent.Value + 1) / 3)
+    public int PurchaseCount => GoldSpent is >= 3 && GoldSpent.Value % 3 == 0
+        ? Math.Max(1, GoldSpent.Value / 3)
         : 1;
 
     public string ToLogLine()
@@ -55,7 +55,8 @@ public sealed record PurchaseEvidence(
 /// disappear simply because recognition finished after the animation.
 ///
 /// A refresh normally costs one gold and changes the shop. A purchase normally
-/// costs three gold and changes the shop plus the hand or board. The detector
+/// costs three gold, but hero powers can discount it to two or another amount;
+/// a purchase usually changes the shop plus the hand or board. The detector
 /// requires corroborating signals and reports uncertainty instead of guessing.
 /// </summary>
 public sealed class PurchaseEventDetector : IDisposable
@@ -157,9 +158,11 @@ public sealed class PurchaseEventDetector : IDisposable
             ? beforeSnapshot.Gold.Value - afterSnapshot.Gold.Value
             : null;
 
-        // A refresh changes the shop but costs one gold. Do not call that a buy
-        // unless a destination changed as well and the visual evidence is strong.
-        var hasPurchaseCost = goldSpent is >= 3;
+        // A refresh changes the shop but costs one gold. A normal minion purchase
+        // costs three, but hero powers and other effects can reduce it to two or
+        // another positive amount. The destination change is decisive for a
+        // discounted purchase; the exact cost is only supporting evidence.
+        var hasPurchaseCost = goldSpent is >= 2;
         var hasDestinationEvidence = destinationChanges > 0;
         if (!hasPurchaseCost && !hasDestinationEvidence)
             return null;
@@ -172,7 +175,9 @@ public sealed class PurchaseEventDetector : IDisposable
 
         var confidence = 0.35;
         if (hasPurchaseCost)
-            confidence += goldSpent!.Value % 3 == 0 ? 0.30 : 0.18;
+            confidence += goldSpent!.Value % 3 == 0 ? 0.30 : 0.22;
+        else if (goldSpent is 1)
+            confidence += 0.08;
         if (hasDestinationEvidence)
             confidence += 0.25;
         if (shop.MaxDifference >= 0.35)

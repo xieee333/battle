@@ -248,6 +248,11 @@
     },
     {
       "label": "gold",
+      "value": 8,
+      "imagePath": "digits/gold-8-20260907-205426-503-Shopping.png"
+    },
+    {
+      "label": "gold",
       "value": 9,
       "imagePath": "digits/gold-9-20260907-193900-058-Shopping.png"
     },
