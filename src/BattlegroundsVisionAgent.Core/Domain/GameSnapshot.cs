@@ -30,7 +30,8 @@ public sealed record GameSnapshot
         int handCapacity,
         int boardCapacity,
         bool hasPendingTripleReward,
-        bool hasUnknownBlockingUi)
+        bool hasUnknownBlockingUi,
+        int? armor = null)
     {
         LayoutVersion = layoutVersion;
         Confidence = confidence;
@@ -46,6 +47,7 @@ public sealed record GameSnapshot
         BoardCapacity = boardCapacity;
         HasPendingTripleReward = hasPendingTripleReward;
         HasUnknownBlockingUi = hasUnknownBlockingUi;
+        Armor = armor;
     }
 
     public long LayoutVersion { get; }
@@ -62,6 +64,7 @@ public sealed record GameSnapshot
     public int BoardCapacity { get; }
     public bool HasPendingTripleReward { get; }
     public bool HasUnknownBlockingUi { get; }
+    public int? Armor { get; }
     public bool IsActionable => (GamePhase is GamePhase.Shopping or GamePhase.Discover)
         && !HasUnknownBlockingUi
         && Confidence >= MinimumActionableConfidence;

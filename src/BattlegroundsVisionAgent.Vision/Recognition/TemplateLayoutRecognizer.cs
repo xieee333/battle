@@ -14,7 +14,8 @@ public sealed record LayoutTemplateProfile(
     NormalizedRect GoldBounds,
     NormalizedRect TavernTierBounds,
     int HandCapacity,
-    int BoardCapacity)
+    int BoardCapacity,
+    NormalizedRect ArmorBounds = default)
 {
     public void Validate()
     {
@@ -140,7 +141,36 @@ public sealed class TemplateLayoutRecognizer : ILayoutRecognizer, IDisposable
             _profile.HandCapacity,
             _profile.BoardCapacity,
             hasPendingTripleReward: false,
-            hasUnknownBlockingUi: confidence < _minimumAnchorConfidence);
+            hasUnknownBlockingUi: confidence < _minimumAnchorConfidence,
+            armorBounds: _profile.ArmorBounds);
+    }
+
+    /// <summary>
+    /// Uses the calibrated normalized coordinates while a transition, combat
+    /// animation, or discover overlay temporarily hides one of the shopping anchors.
+    /// The result is deliberately blocking so it can provide read-only state without
+    /// allowing an action to run on an uncertain layout.
+    /// </summary>
+    public LayoutRecognition RecognizeUsingProfileFallback()
+    {
+        ThrowIfDisposed();
+        var slots = new List<CardSlot>(
+            _profile.ShopSlots.Count + _profile.HandSlots.Count + _profile.BoardSlots.Count + _profile.DiscoverSlots.Count);
+        AddSlots(slots, CardZone.Shop, _profile.ShopSlots);
+        AddSlots(slots, CardZone.Hand, _profile.HandSlots);
+        AddSlots(slots, CardZone.Board, _profile.BoardSlots);
+        AddSlots(slots, CardZone.Discover, _profile.DiscoverSlots);
+        return LayoutRecognition.Succeeded(
+            layoutVersion: 0,
+            confidence: 0.70,
+            slots,
+            _profile.GoldBounds,
+            _profile.TavernTierBounds,
+            _profile.HandCapacity,
+            _profile.BoardCapacity,
+            hasPendingTripleReward: false,
+            hasUnknownBlockingUi: true,
+            armorBounds: _profile.ArmorBounds);
     }
 
     public void Dispose()

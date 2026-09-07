@@ -115,7 +115,7 @@ public sealed class VisionProfileAssets : IDisposable
             var digits = document.Digits.Select(digit =>
             {
                 using var image = ReadTemplate(ResolveContainedPath(profileDirectory, digit.ImagePath), $"digit:{digit.Value}");
-                return new DigitTemplate(digit.Value, PerceptualHash.Create(image));
+                return new DigitTemplate(digit.Value, PerceptualHash.Create(image), digit.Label);
             }).ToArray();
 
             return new VisionProfileAssets(document.Layout, anchors, scenes, digits, ownedTemplates);
@@ -192,6 +192,7 @@ public sealed class VisionProfileAssets : IDisposable
     private sealed class DigitTemplateFile
     {
         public int Value { get; init; }
+        public string Label { get; init; } = string.Empty;
         public string ImagePath { get; init; } = string.Empty;
     }
 

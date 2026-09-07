@@ -15,13 +15,15 @@ public sealed record LayoutRecognition(
     int HandCapacity,
     int BoardCapacity,
     bool HasPendingTripleReward,
-    bool HasUnknownBlockingUi)
+    bool HasUnknownBlockingUi,
+    NormalizedRect ArmorBounds = default)
 {
     public static LayoutRecognition Succeeded(long layoutVersion, double confidence, IReadOnlyList<CardSlot> slots,
         NormalizedRect goldBounds, NormalizedRect tavernTierBounds, int handCapacity, int boardCapacity,
-        bool hasPendingTripleReward = false, bool hasUnknownBlockingUi = false) =>
+        bool hasPendingTripleReward = false, bool hasUnknownBlockingUi = false,
+        NormalizedRect armorBounds = default) =>
         new(true, layoutVersion, confidence, slots, goldBounds, tavernTierBounds, handCapacity, boardCapacity,
-            hasPendingTripleReward, hasUnknownBlockingUi);
+            hasPendingTripleReward, hasUnknownBlockingUi, armorBounds);
 
     public static LayoutRecognition Failed() => new(false, 0, 0, [], default, default, 0, 0, false, true);
 }
@@ -38,7 +40,8 @@ public sealed record SnapshotRecognitionResult(
     DigitRecognition Gold,
     DigitRecognition TavernTier,
     SceneRecognition Scene,
-    IReadOnlyList<RecognizedCard> Cards);
+    IReadOnlyList<RecognizedCard> Cards,
+    DigitRecognition? Armor = null);
 
 public sealed class SnapshotRecognizer(
     ILayoutRecognizer layoutRecognizer,
@@ -50,13 +53,19 @@ public sealed class SnapshotRecognizer(
     public SnapshotRecognitionResult Recognize(Mat frame, DateTimeOffset capturedAt)
     {
         ArgumentNullException.ThrowIfNull(frame);
+        var scene = sceneRecognizer.Recognize(frame);
         var layout = layoutRecognizer.Recognize(frame);
+        if (!layout.IsSuccess && scene.GamePhase != GamePhase.Unknown
+            && layoutRecognizer is TemplateLayoutRecognizer templateLayout)
+            layout = templateLayout.RecognizeUsingProfileFallback();
         if (!layout.IsSuccess)
             return Failed(capturedAt);
 
         var gold = digitRecognizer.Recognize(frame, layout.GoldBounds, "gold");
         var tier = digitRecognizer.Recognize(frame, layout.TavernTierBounds, "tavern-tier");
-        var scene = sceneRecognizer.Recognize(frame);
+        var armor = layout.ArmorBounds.Width > 0 && layout.ArmorBounds.Height > 0
+            ? digitRecognizer.Recognize(frame, layout.ArmorBounds, "armor")
+            : null;
         var cards = new List<RecognizedCard>();
         foreach (var slot in layout.Slots)
         {
@@ -66,7 +75,8 @@ public sealed class SnapshotRecognizer(
             cards.Add(new RecognizedCard(observation, slot.Bounds, slot.SlotIndex, match.Confidence));
         }
 
-        var confidence = new[] { layout.Confidence, gold.Confidence, tier.Confidence, scene.Confidence }
+        var confidence = new[] { layout.Confidence, gold.Confidence, tier.Confidence, scene.Confidence,
+                armor?.Confidence ?? 1 }
             .Concat(cards.Select(card => card.Confidence)).DefaultIfEmpty(0).Min();
         var unknownBlockingUi = layout.HasUnknownBlockingUi || !gold.IsKnown || !tier.IsKnown || scene.GamePhase == GamePhase.Unknown
             || cards.Any(card => card.Observation.CardId == UnknownCardId);
@@ -76,8 +86,9 @@ public sealed class SnapshotRecognizer(
             cards.Where(card => card.Observation.CardZone == CardZone.Hand).Select(card => card.Observation).ToArray(),
             cards.Where(card => card.Observation.CardZone == CardZone.Board).Select(card => card.Observation).ToArray(),
             cards.Where(card => card.Observation.CardZone == CardZone.Discover).Select(card => card.Observation).ToArray(),
-            layout.HandCapacity, layout.BoardCapacity, layout.HasPendingTripleReward, unknownBlockingUi);
-        return new SnapshotRecognitionResult(snapshot, gold, tier, scene, cards);
+            layout.HandCapacity, layout.BoardCapacity, layout.HasPendingTripleReward, unknownBlockingUi,
+            armor?.Value);
+        return new SnapshotRecognitionResult(snapshot, gold, tier, scene, cards, armor);
     }
 
     private static SnapshotRecognitionResult Failed(DateTimeOffset capturedAt)
@@ -85,7 +96,7 @@ public sealed class SnapshotRecognizer(
         var empty = new NormalizedRect(0, 0, 0, 0);
         var digit = new DigitRecognition(null, empty, 0);
         var scene = new SceneRecognition(GamePhase.Unknown, 0);
-        var snapshot = new GameSnapshot(0, 0, capturedAt, GamePhase.Unknown, null, null, [], [], [], [], 0, 0, false, true);
+        var snapshot = new GameSnapshot(0, 0, capturedAt, scene.GamePhase, null, null, [], [], [], [], 0, 0, false, true);
         return new SnapshotRecognitionResult(snapshot, digit, digit, scene, []);
     }
 

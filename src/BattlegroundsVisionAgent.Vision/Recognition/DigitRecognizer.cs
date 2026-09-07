@@ -14,10 +14,14 @@ public interface IDigitRecognizer
     DigitRecognition Recognize(Mat image, NormalizedRect bounds, string label);
 }
 
-public sealed record DigitTemplate(int Value, ulong PerceptualHash);
+public sealed record DigitTemplate(int Value, ulong PerceptualHash, string Label = "");
 
 public sealed class DigitRecognizer : IDigitRecognizer
 {
+    // Captured frames contain glow, antialiasing and a changing compositor behind
+    // the numeral.  Label-scoped templates keep the candidate set safe, allowing
+    // a small amount of visual drift without accepting a different UI field.
+    private const double MinimumConfidence = 0.82;
     private readonly IReadOnlyList<DigitTemplate> _templates;
 
     public DigitRecognizer(IEnumerable<DigitTemplate>? templates = null) => _templates = templates?.ToArray() ?? [];
@@ -26,13 +30,17 @@ public sealed class DigitRecognizer : IDigitRecognizer
     {
         ArgumentNullException.ThrowIfNull(image);
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
-        if (_templates.Count == 0)
+        var candidates = _templates
+            .Where(template => string.IsNullOrWhiteSpace(template.Label)
+                || string.Equals(template.Label, label, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (candidates.Length == 0)
             return new DigitRecognition(null, bounds, 0);
         using var crop = Crop(image, bounds);
         var hash = PerceptualHash.Create(crop);
-        var best = _templates.Select(template => new { template, confidence = 1 - System.Numerics.BitOperations.PopCount(hash ^ template.PerceptualHash) / 64d })
+        var best = candidates.Select(template => new { template, confidence = 1 - System.Numerics.BitOperations.PopCount(hash ^ template.PerceptualHash) / 64d })
             .OrderByDescending(match => match.confidence).First();
-        return best.confidence >= 0.92 ? new DigitRecognition(best.template.Value, bounds, best.confidence) : new DigitRecognition(null, bounds, best.confidence);
+        return best.confidence >= MinimumConfidence ? new DigitRecognition(best.template.Value, bounds, best.confidence) : new DigitRecognition(null, bounds, best.confidence);
     }
 
     private static Mat Crop(Mat image, NormalizedRect bounds) =>

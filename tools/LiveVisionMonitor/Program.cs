@@ -61,7 +61,7 @@ while (!cancellation.IsCancellationRequested)
             var knownCards = result.Cards.Count(card => card.Observation.CardId != "UNKNOWN");
             var phaseChanged = !string.Equals(phase, lastPhase, StringComparison.Ordinal);
             var line = string.Create(CultureInfo.InvariantCulture,
-                $"{captured.CapturedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss.fff} phase={phase} scene={result.Scene.Confidence:P0} layout={snapshot.Confidence:P0} gold={Format(snapshot.Gold)} tier={Format(snapshot.TavernTier)} cards={knownCards}/{result.Cards.Count} status={status}");
+                $"{captured.CapturedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss.fff} phase={phase} scene={result.Scene.Confidence:P0} layout={snapshot.Confidence:P0} gold={Format(snapshot.Gold)} tier={Format(snapshot.TavernTier)} armor={Format(snapshot.Armor)} shop={snapshot.Shop.Count} hand={snapshot.Hand.Count} board={snapshot.Board.Count} discover={snapshot.DiscoverOptions.Count} cards={knownCards}/{result.Cards.Count} status={status}");
             if (phaseChanged)
             {
                 var fileName = $"{captured.CapturedAt.ToLocalTime():yyyyMMdd-HHmmss-fff}-{phase}.png";
