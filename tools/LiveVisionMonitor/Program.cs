@@ -32,6 +32,7 @@ Console.CancelKeyPress += (_, eventArgs) =>
 };
 
 using var pipeline = VisionRecognitionPipeline.Load(profilePath, catalogPath);
+using var purchaseDetector = new PurchaseEventDetector();
 var lastLine = string.Empty;
 var lastPhase = string.Empty;
 var lastStatus = string.Empty;
@@ -55,6 +56,7 @@ while (!cancellation.IsCancellationRequested)
             using var source = new WindowsFrameSource(handle);
             using var captured = await source.CaptureAsync(cancellation.Token);
             var result = pipeline.Recognizer.Recognize(captured.Image, captured.CapturedAt);
+            var purchase = purchaseDetector.Observe(captured.Image, result);
             var snapshot = result.Snapshot;
             var phase = snapshot.GamePhase.ToString();
             var status = snapshot.IsActionable ? "actionable" : "blocked";
@@ -69,6 +71,8 @@ while (!cancellation.IsCancellationRequested)
             }
             if (phaseChanged || status != lastStatus)
                 await WriteAsync(line, force: true);
+            if (purchase is not null)
+                await WriteAsync($"视觉事件：{purchase.ToLogLine()}", force: true);
             lastPhase = phase;
             lastStatus = status;
         }
