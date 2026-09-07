@@ -19,8 +19,9 @@ public sealed class SceneRecognizer : ISceneRecognizer
     // glow effects and board animations can all change while the phase stays
     // the same.  A 0.92 full-frame hash threshold rejected those legitimate
     // shopping frames.  Keep the threshold conservative enough to reject a
-    // substantially different screen while tolerating normal compositor drift.
-    public const double MinimumConfidence = 0.74;
+    // substantially different screen while tolerating normal compositor drift
+    // and the large card-detail tooltip shown when the cursor hovers a card.
+    public const double MinimumConfidence = 0.70;
 
     private readonly IReadOnlyList<SceneTemplate> _templates;
     public SceneRecognizer(IEnumerable<SceneTemplate>? templates = null) => _templates = templates?.ToArray() ?? [];
