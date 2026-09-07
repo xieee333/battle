@@ -196,6 +196,12 @@
       "width": 0.022,
       "height": 0.038
     },
+    "goldCoinBounds": {
+      "x": 0.681,
+      "y": 0.895,
+      "width": 0.22,
+      "height": 0.054
+    },
     "tavernTierBounds": {
       "x": 0.579,
       "y": 0.114,

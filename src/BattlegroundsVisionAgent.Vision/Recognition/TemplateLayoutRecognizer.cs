@@ -15,7 +15,8 @@ public sealed record LayoutTemplateProfile(
     NormalizedRect TavernTierBounds,
     int HandCapacity,
     int BoardCapacity,
-    NormalizedRect ArmorBounds = default)
+    NormalizedRect ArmorBounds = default,
+    NormalizedRect GoldCoinBounds = default)
 {
     public void Validate()
     {
@@ -35,6 +36,8 @@ public sealed record LayoutTemplateProfile(
         ValidateSlots(Regions.Board, BoardSlots, "board");
         if (DiscoverSlots.Any(slot => !IsInside(slot, new NormalizedRect(0, 0, 1, 1))))
             throw new InvalidDataException("Discover slots must remain within the frame.");
+        if (GoldCoinBounds.Width > 0 && !IsInside(GoldCoinBounds, new NormalizedRect(0, 0, 1, 1)))
+            throw new InvalidDataException("Gold coin bounds must remain within the frame.");
     }
 
     private static void ValidateSlots(NormalizedRect region, IReadOnlyList<NormalizedRect> slots, string zone)
@@ -142,7 +145,8 @@ public sealed class TemplateLayoutRecognizer : ILayoutRecognizer, IDisposable
             _profile.BoardCapacity,
             hasPendingTripleReward: false,
             hasUnknownBlockingUi: confidence < _minimumAnchorConfidence,
-            armorBounds: _profile.ArmorBounds);
+            armorBounds: _profile.ArmorBounds,
+            goldCoinBounds: _profile.GoldCoinBounds);
     }
 
     /// <summary>
@@ -170,7 +174,8 @@ public sealed class TemplateLayoutRecognizer : ILayoutRecognizer, IDisposable
             _profile.BoardCapacity,
             hasPendingTripleReward: false,
             hasUnknownBlockingUi: true,
-            armorBounds: _profile.ArmorBounds);
+            armorBounds: _profile.ArmorBounds,
+            goldCoinBounds: _profile.GoldCoinBounds);
     }
 
     public void Dispose()

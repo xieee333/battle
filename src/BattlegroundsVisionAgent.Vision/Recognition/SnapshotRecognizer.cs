@@ -16,14 +16,15 @@ public sealed record LayoutRecognition(
     int BoardCapacity,
     bool HasPendingTripleReward,
     bool HasUnknownBlockingUi,
-    NormalizedRect ArmorBounds = default)
+    NormalizedRect ArmorBounds = default,
+    NormalizedRect GoldCoinBounds = default)
 {
     public static LayoutRecognition Succeeded(long layoutVersion, double confidence, IReadOnlyList<CardSlot> slots,
         NormalizedRect goldBounds, NormalizedRect tavernTierBounds, int handCapacity, int boardCapacity,
         bool hasPendingTripleReward = false, bool hasUnknownBlockingUi = false,
-        NormalizedRect armorBounds = default) =>
+        NormalizedRect armorBounds = default, NormalizedRect goldCoinBounds = default) =>
         new(true, layoutVersion, confidence, slots, goldBounds, tavernTierBounds, handCapacity, boardCapacity,
-            hasPendingTripleReward, hasUnknownBlockingUi, armorBounds);
+            hasPendingTripleReward, hasUnknownBlockingUi, armorBounds, goldCoinBounds);
 
     public static LayoutRecognition Failed() => new(false, 0, 0, [], default, default, 0, 0, false, true);
 }
@@ -62,6 +63,12 @@ public sealed class SnapshotRecognizer(
             return Failed(capturedAt);
 
         var gold = digitRecognizer.Recognize(frame, layout.GoldBounds, "gold");
+        if (layout.GoldCoinBounds.Width > 0 && layout.GoldCoinBounds.Height > 0)
+        {
+            var coinRecognition = GoldCoinRecognizer.Recognize(frame, layout.GoldCoinBounds);
+            if (coinRecognition.IsKnown)
+                gold = new DigitRecognition(coinRecognition.Value, layout.GoldBounds, coinRecognition.Confidence);
+        }
         var tier = digitRecognizer.Recognize(frame, layout.TavernTierBounds, "tavern-tier");
         var armor = layout.ArmorBounds.Width > 0 && layout.ArmorBounds.Height > 0
             ? digitRecognizer.Recognize(frame, layout.ArmorBounds, "armor")

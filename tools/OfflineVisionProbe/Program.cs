@@ -51,6 +51,8 @@ if (string.Equals(args[0], "--annotate", StringComparison.OrdinalIgnoreCase))
     foreach (var slot in assets.Layout.BoardSlots)
         DrawRegion(annotated, slot, new Scalar(255, 0, 0), "");
     DrawRegion(annotated, assets.Layout.GoldBounds, new Scalar(255, 255, 0), "gold");
+    if (assets.Layout.GoldCoinBounds.Width > 0 && assets.Layout.GoldCoinBounds.Height > 0)
+        DrawRegion(annotated, assets.Layout.GoldCoinBounds, new Scalar(0, 200, 255), "gold-coins");
     DrawRegion(annotated, assets.Layout.TavernTierBounds, new Scalar(255, 0, 255), "tier");
     Cv2.ImWrite(Path.GetFullPath(args[3]), annotated);
     Console.WriteLine($"Annotated: {Path.GetFullPath(args[3])}");
