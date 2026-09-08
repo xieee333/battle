@@ -2,6 +2,8 @@ param(
     [int]$IntervalMs = 500
 )
 
+$ErrorActionPreference = "Stop"
+
 $root = Split-Path -Parent $PSScriptRoot
 $bundledDotnet = Join-Path $root "tools\dotnet\dotnet.exe"
 $dotnet = if (Test-Path $bundledDotnet) { $bundledDotnet } else { (Get-Command dotnet -ErrorAction Stop).Source }
@@ -19,7 +21,8 @@ if (-not (Test-Path $dll)) {
 }
 
 New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null
-$arguments = @($dll, $profile, $catalog, $log, [Math]::Clamp($IntervalMs, 250, 5000))
+$safeIntervalMs = [Math]::Max(250, [Math]::Min(5000, $IntervalMs))
+$arguments = @($dll, $profile, $catalog, $log, $safeIntervalMs)
 $process = Start-Process -FilePath $dotnet -ArgumentList $arguments -WorkingDirectory $root -WindowStyle Hidden -PassThru
 Write-Output "只读监听器已启动：PID $($process.Id)"
 Write-Output "日志：$log"

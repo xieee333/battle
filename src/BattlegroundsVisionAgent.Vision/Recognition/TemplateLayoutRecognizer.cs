@@ -123,9 +123,10 @@ public sealed class TemplateLayoutRecognizer : ILayoutRecognizer, IDisposable
         if (!layout.IsSuccess)
             return LayoutRecognition.Failed();
 
+        var shopSlots = ShopSlotDetector.Detect(frame, _profile.Regions.Shop, _profile.ShopSlots);
         var slots = new List<CardSlot>(
-            _profile.ShopSlots.Count + _profile.HandSlots.Count + _profile.BoardSlots.Count + _profile.DiscoverSlots.Count);
-        AddSlots(slots, CardZone.Shop, _profile.ShopSlots);
+            shopSlots.Count + _profile.HandSlots.Count + _profile.BoardSlots.Count + _profile.DiscoverSlots.Count);
+        AddSlots(slots, CardZone.Shop, shopSlots);
         AddSlots(slots, CardZone.Hand, _profile.HandSlots);
         AddSlots(slots, CardZone.Board, _profile.BoardSlots);
         AddSlots(slots, CardZone.Discover, _profile.DiscoverSlots);
@@ -156,11 +157,17 @@ public sealed class TemplateLayoutRecognizer : ILayoutRecognizer, IDisposable
     /// allowing an action to run on an uncertain layout.
     /// </summary>
     public LayoutRecognition RecognizeUsingProfileFallback()
+        => RecognizeUsingProfileFallback(frame: null);
+
+    public LayoutRecognition RecognizeUsingProfileFallback(Mat? frame)
     {
         ThrowIfDisposed();
+        var shopSlots = frame is not null && !frame.Empty()
+            ? ShopSlotDetector.Detect(frame, _profile.Regions.Shop, _profile.ShopSlots)
+            : _profile.ShopSlots;
         var slots = new List<CardSlot>(
-            _profile.ShopSlots.Count + _profile.HandSlots.Count + _profile.BoardSlots.Count + _profile.DiscoverSlots.Count);
-        AddSlots(slots, CardZone.Shop, _profile.ShopSlots);
+            shopSlots.Count + _profile.HandSlots.Count + _profile.BoardSlots.Count + _profile.DiscoverSlots.Count);
+        AddSlots(slots, CardZone.Shop, shopSlots);
         AddSlots(slots, CardZone.Hand, _profile.HandSlots);
         AddSlots(slots, CardZone.Board, _profile.BoardSlots);
         AddSlots(slots, CardZone.Discover, _profile.DiscoverSlots);

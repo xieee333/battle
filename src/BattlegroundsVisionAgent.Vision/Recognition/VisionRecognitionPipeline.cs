@@ -32,7 +32,7 @@ public sealed class VisionRecognitionPipeline : IDisposable
             var layoutRecognizer = new TemplateLayoutRecognizer(assets.Layout, assets.AnchorTemplates);
             var recognizer = new SnapshotRecognizer(
                 layoutRecognizer,
-                new CardMatcher(new CardFeatureStore(catalogDatabasePath)),
+                new CardThumbnailMatcher(new CardThumbnailFeatureStore(catalogDatabasePath)),
                 new DigitRecognizer(assets.DigitTemplates),
                 new SceneRecognizer(assets.SceneTemplates));
             return new VisionRecognitionPipeline(layoutRecognizer, recognizer);
@@ -53,6 +53,7 @@ public sealed class VisionRecognitionPipeline : IDisposable
         if (_disposed)
             return;
         _disposed = true;
+        Recognizer.Dispose();
         _layoutRecognizer.Dispose();
     }
 }

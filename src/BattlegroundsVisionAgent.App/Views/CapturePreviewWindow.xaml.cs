@@ -149,9 +149,10 @@ public partial class CapturePreviewWindow : System.Windows.Window
                 ? $"未知（{result.Scene.Confidence:P0}）"
                 : $"{result.Scene.GamePhase}（{result.Scene.Confidence:P0}）";
             var knownCards = result.Cards.Count(card => card.Observation.CardId != "UNKNOWN");
+            var knownShopCards = result.Snapshot.Shop.Count(card => card.CardId != "UNKNOWN");
             var gold = result.Gold.IsKnown ? result.Gold.Value!.Value.ToString() : "未知";
             var tier = result.TavernTier.IsKnown ? result.TavernTier.Value!.Value.ToString() : "未知";
-            Status.Text = $"离线识别完成：场景 {scene}；金币 {gold}；本数 {tier}；已识别卡槽 {knownCards}/{result.Cards.Count}。" +
+            Status.Text = $"离线识别完成：场景 {scene}；金币 {gold}；本数 {tier}；商店卡牌 {knownShopCards}/{result.Snapshot.Shop.Count}；全部槽位 {knownCards}/{result.Cards.Count}。" +
                           (result.Snapshot.IsActionable ? "当前快照可行动。" : "当前快照仍安全阻断，不会发送输入。");
         }
         catch (Exception exception)

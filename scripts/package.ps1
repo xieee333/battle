@@ -8,12 +8,19 @@ $dotnet = if (Test-Path -LiteralPath $localDotnet -PathType Leaf) { $localDotnet
 
 & $dotnet publish $appProject `
     -c Release -r win-x64 --self-contained true `
+    --no-restore `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
     -o $output
 
 if ($LASTEXITCODE -ne 0) {
     throw "Publish failed with exit code $LASTEXITCODE"
 }
+
+$runtimeData = Join-Path $projectRoot 'data'
+if (-not (Test-Path -LiteralPath $runtimeData -PathType Container)) {
+    throw "Missing runtime data directory: $runtimeData"
+}
+Copy-Item -LiteralPath $runtimeData -Destination $output -Recurse -Force
 
 $executable = Join-Path $output 'BattlegroundsVisionAgent.App.exe'
 if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {

@@ -48,7 +48,7 @@ public sealed class SnapshotRecognizer(
     ILayoutRecognizer layoutRecognizer,
     ICardMatcher cardMatcher,
     IDigitRecognizer digitRecognizer,
-    ISceneRecognizer sceneRecognizer)
+    ISceneRecognizer sceneRecognizer) : IDisposable
 {
     private const string UnknownCardId = "UNKNOWN";
     public SnapshotRecognitionResult Recognize(Mat frame, DateTimeOffset capturedAt)
@@ -58,7 +58,7 @@ public sealed class SnapshotRecognizer(
         var layout = layoutRecognizer.Recognize(frame);
         if (!layout.IsSuccess && scene.GamePhase != GamePhase.Unknown
             && layoutRecognizer is TemplateLayoutRecognizer templateLayout)
-            layout = templateLayout.RecognizeUsingProfileFallback();
+            layout = templateLayout.RecognizeUsingProfileFallback(frame);
         if (!layout.IsSuccess)
             return Failed(capturedAt);
 
@@ -77,8 +77,11 @@ public sealed class SnapshotRecognizer(
         foreach (var slot in layout.Slots)
         {
             using var cardImage = Crop(frame, slot.Bounds);
-            var match = cardMatcher.Match(cardImage);
-            var observation = new CardObservation(match.CardId ?? UnknownCardId, slot.Zone, slot.SlotIndex, match.IsGolden, slot.Bounds, match.Confidence);
+            var match = cardMatcher is IZoneAwareCardMatcher zoneAwareMatcher
+                ? zoneAwareMatcher.Match(cardImage, slot.Zone)
+                : cardMatcher.Match(cardImage);
+            var observation = new CardObservation(match.CardId ?? UnknownCardId, slot.Zone, slot.SlotIndex,
+                match.IsGolden, slot.Bounds, match.Confidence, match.Kind);
             cards.Add(new RecognizedCard(observation, slot.Bounds, slot.SlotIndex, match.Confidence));
         }
 
@@ -86,7 +89,8 @@ public sealed class SnapshotRecognizer(
                 armor?.Confidence ?? 1 }
             .Concat(cards.Select(card => card.Confidence)).DefaultIfEmpty(0).Min();
         var unknownBlockingUi = layout.HasUnknownBlockingUi || !gold.IsKnown || !tier.IsKnown || scene.GamePhase == GamePhase.Unknown
-            || cards.Any(card => card.Observation.CardId == UnknownCardId);
+            || cards.Any(card => card.Observation.CardId == UnknownCardId
+                && card.Observation.Kind != CardKind.Spell);
         var snapshot = new GameSnapshot(layout.LayoutVersion, confidence, capturedAt, scene.GamePhase,
             gold.Value, tier.Value,
             cards.Where(card => card.Observation.CardZone == CardZone.Shop).Select(card => card.Observation).ToArray(),
@@ -114,5 +118,11 @@ public sealed class SnapshotRecognizer(
         var width = Math.Max(1, (int)Math.Ceiling(bounds.Width * frame.Width));
         var height = Math.Max(1, (int)Math.Ceiling(bounds.Height * frame.Height));
         return new Mat(frame, new Rect(x, y, Math.Min(width, frame.Width - x), Math.Min(height, frame.Height - y))).Clone();
+    }
+
+    public void Dispose()
+    {
+        if (cardMatcher is IDisposable disposable)
+            disposable.Dispose();
     }
 }

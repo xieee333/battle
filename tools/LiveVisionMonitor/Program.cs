@@ -25,6 +25,7 @@ var intervalMs = args.Length >= 4 && int.TryParse(args[3], NumberStyles.Integer,
 Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
 Directory.CreateDirectory(frameDirectory);
 using var cancellation = new CancellationTokenSource();
+var phaseTracker = new PhaseConfirmationTracker();
 Console.CancelKeyPress += (_, eventArgs) =>
 {
     eventArgs.Cancel = true;
@@ -45,10 +46,12 @@ while (!cancellation.IsCancellationRequested)
         var handle = WindowsGameWindowLocator.FindHearthstoneWindow();
         if (handle == IntPtr.Zero)
         {
+            phaseTracker.Reset();
             await WriteAsync("等待炉石窗口");
         }
         else if (!new WindowsGameFocusProbe(handle).IsHearthstoneForeground())
         {
+            phaseTracker.Reset();
             await WriteAsync("炉石未在前台，跳过本次捕获");
         }
         else
@@ -56,14 +59,22 @@ while (!cancellation.IsCancellationRequested)
             using var source = new WindowsFrameSource(handle);
             using var captured = await source.CaptureAsync(cancellation.Token);
             var result = pipeline.Recognizer.Recognize(captured.Image, captured.CapturedAt);
+            var confirmedPhase = phaseTracker.Observe(result.Scene);
+            if (confirmedPhase is null)
+            {
+                await Task.Delay(intervalMs, cancellation.Token);
+                continue;
+            }
+
             var purchase = purchaseDetector.Observe(captured.Image, result);
             var snapshot = result.Snapshot;
-            var phase = snapshot.GamePhase.ToString();
+            var phase = confirmedPhase.Value.ToString();
             var status = snapshot.IsActionable ? "actionable" : "blocked";
             var knownCards = result.Cards.Count(card => card.Observation.CardId != "UNKNOWN");
+            var knownShopCards = snapshot.Shop.Count(card => card.CardId != "UNKNOWN");
             var phaseChanged = !string.Equals(phase, lastPhase, StringComparison.Ordinal);
             var line = string.Create(CultureInfo.InvariantCulture,
-                $"{captured.CapturedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss.fff} phase={phase} scene={result.Scene.Confidence:P0} layout={snapshot.Confidence:P0} gold={Format(snapshot.Gold)} tier={Format(snapshot.TavernTier)} armor={Format(snapshot.Armor)} shop={snapshot.Shop.Count} hand={snapshot.Hand.Count} board={snapshot.Board.Count} discover={snapshot.DiscoverOptions.Count} cards={knownCards}/{result.Cards.Count} status={status}");
+                $"{captured.CapturedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss.fff} phase={phase} scene={result.Scene.Confidence:P0} layout={snapshot.Confidence:P0} gold={Format(snapshot.Gold)} tier={Format(snapshot.TavernTier)} armor={Format(snapshot.Armor)} shop={snapshot.Shop.Count} hand={snapshot.Hand.Count} board={snapshot.Board.Count} discover={snapshot.DiscoverOptions.Count} shopKnown={knownShopCards}/{snapshot.Shop.Count} allKnown={knownCards}/{result.Cards.Count} status={status}");
             if (phaseChanged)
             {
                 var fileName = $"{captured.CapturedAt.ToLocalTime():yyyyMMdd-HHmmss-fff}-{phase}.png";

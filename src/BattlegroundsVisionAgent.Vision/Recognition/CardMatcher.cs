@@ -1,17 +1,28 @@
+using BattlegroundsVisionAgent.Core.Domain;
 using BattlegroundsVisionAgent.Vision.Catalog;
 using OpenCvSharp;
 
 namespace BattlegroundsVisionAgent.Vision.Recognition;
 
-public sealed record CardMatch(string? CardId, bool IsGolden, double Confidence)
+public sealed record CardMatch(
+    string? CardId,
+    bool IsGolden,
+    double Confidence,
+    CardKind Kind = CardKind.Unknown)
 {
     public bool IsKnown => CardId is not null;
     public static CardMatch Unknown(double confidence = 0) => new(null, false, Math.Clamp(confidence, 0, 1));
+    public static CardMatch Spell(double confidence = 1) => new(null, false, Math.Clamp(confidence, 0, 1), CardKind.Spell);
 }
 
 public interface ICardMatcher
 {
     CardMatch Match(Mat cardImage);
+}
+
+public interface IZoneAwareCardMatcher
+{
+    CardMatch Match(Mat cardImage, CardZone zone);
 }
 
 public sealed class CardMatcher : ICardMatcher
@@ -58,7 +69,7 @@ public sealed class CardMatcher : ICardMatcher
                     continue;
                 var score = Verify(queryHash, queryDescriptor, queryPoints, candidate, descriptor);
                 if (score > best.Confidence)
-                    best = new CardMatch(candidate.CardId, candidate.IsGolden, score);
+                    best = new CardMatch(candidate.CardId, candidate.IsGolden, score, CardKind.Minion);
             }
             return best.Confidence >= _minimumConfidence ? best : CardMatch.Unknown(best.Confidence);
         }

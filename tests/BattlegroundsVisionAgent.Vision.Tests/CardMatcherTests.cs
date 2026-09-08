@@ -1,3 +1,4 @@
+using BattlegroundsVisionAgent.Core.Domain;
 using BattlegroundsVisionAgent.Vision.Catalog;
 using BattlegroundsVisionAgent.Vision.Recognition;
 using OpenCvSharp;
@@ -6,6 +7,19 @@ namespace BattlegroundsVisionAgent.Vision.Tests;
 
 public sealed class CardMatcherTests
 {
+    [Fact]
+    public void ThumbnailMatcher_DoesNotApplyShopFeaturesToOtherZones()
+    {
+        using var image = SyntheticImages.FeaturedCard();
+        var store = InMemoryFeatureStore.WithCard("CARD_A", image);
+        using var matcher = new CardThumbnailMatcher(store, minimumConfidence: 0, minimumMargin: 0);
+
+        var result = matcher.Match(image, CardZone.Board);
+
+        Assert.False(result.IsKnown);
+        Assert.Null(result.CardId);
+    }
+
     [Fact]
     public void Constructor_RejectsThresholdBelowSafetyFloor()
     {

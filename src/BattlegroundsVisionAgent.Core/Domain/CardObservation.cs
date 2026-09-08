@@ -10,6 +10,13 @@ public enum CardZone
     Discover
 }
 
+public enum CardKind
+{
+    Unknown,
+    Minion,
+    Spell
+}
+
 public readonly record struct NormalizedRect
 {
     [JsonConstructor]
@@ -51,4 +58,5 @@ public sealed record CardObservation(
     int SlotIndex,
     bool IsGolden,
     NormalizedRect Bounds,
-    double Confidence);
+    double Confidence,
+    CardKind Kind = CardKind.Unknown);

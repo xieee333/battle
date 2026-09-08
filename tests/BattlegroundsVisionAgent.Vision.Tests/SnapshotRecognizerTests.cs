@@ -36,6 +36,23 @@ public sealed class SnapshotRecognizerTests
 
         Assert.True(recognizer.Recognize(frame, DateTimeOffset.UnixEpoch).Snapshot.IsActionable);
     }
+
+    [Fact]
+    public void Recognize_TreatsConfirmedSpellSlotAsNonBlockingUnknown()
+    {
+        using var frame = new Mat(100, 100, MatType.CV_8UC1, Scalar.All(40));
+        var bounds = new NormalizedRect(0, 0, 1, 1);
+        var recognizer = new SnapshotRecognizer(
+            new StubLayoutRecognizer(LayoutRecognition.Succeeded(1, 1, [new CardSlot(CardZone.Shop, 0, bounds)], bounds, bounds, 1, 7)),
+            new StubCardMatcher(CardMatch.Spell(0.95)), new StubDigitRecognizer(1, 1, 1),
+            new StubSceneRecognizer(new SceneRecognition(GamePhase.Shopping, 1)));
+
+        var snapshot = recognizer.Recognize(frame, DateTimeOffset.UnixEpoch).Snapshot;
+
+        Assert.True(snapshot.IsActionable);
+        Assert.Equal(CardKind.Spell, Assert.Single(snapshot.Shop).Kind);
+        Assert.Equal("UNKNOWN", snapshot.Shop[0].CardId);
+    }
     [Fact]
     public void TemplateRecognizers_ReturnKnownValuesForExactSyntheticTemplates()
     {
