@@ -45,6 +45,7 @@ public partial class CapturePreviewWindow : System.Windows.Window
         OpenButton.IsEnabled = false;
         _png = null;
         Preview.Source = null;
+        RecognitionResultText.Text = "等待新的截图。";
         RegionCanvas.Children.Clear();
         try
         {
@@ -96,6 +97,7 @@ public partial class CapturePreviewWindow : System.Windows.Window
         ImageSurface.Width = _imageWidth;
         ImageSurface.Height = _imageHeight;
         Preview.Source = bitmap;
+        RecognitionResultText.Text = "截图已加载。点击“离线识别当前截图”查看完整结果。";
         _regions.Clear(); // A new frame must not silently inherit another scene's calibration.
         _dragStart = null;
         CalibrationControls.IsEnabled = true;
@@ -143,17 +145,10 @@ public partial class CapturePreviewWindow : System.Windows.Window
         try
         {
             using var screenshot = Cv2.ImDecode(_png, ImreadModes.Color);
-            using var pipeline = VisionRecognitionPipeline.Load(profilePath, catalogPath);
-            var result = pipeline.Recognizer.Recognize(screenshot, DateTimeOffset.Now);
-            var scene = result.Scene.GamePhase == BattlegroundsVisionAgent.Core.Domain.GamePhase.Unknown
-                ? $"未知（{result.Scene.Confidence:P0}）"
-                : $"{result.Scene.GamePhase}（{result.Scene.Confidence:P0}）";
-            var knownCards = result.Cards.Count(card => card.Observation.CardId != "UNKNOWN");
-            var knownShopCards = result.Snapshot.Shop.Count(card => card.CardId != "UNKNOWN");
-            var gold = result.Gold.IsKnown ? result.Gold.Value!.Value.ToString() : "未知";
-            var tier = result.TavernTier.IsKnown ? result.TavernTier.Value!.Value.ToString() : "未知";
-            Status.Text = $"离线识别完成：场景 {scene}；金币 {gold}；本数 {tier}；商店卡牌 {knownShopCards}/{result.Snapshot.Shop.Count}；全部槽位 {knownCards}/{result.Cards.Count}。" +
-                          (result.Snapshot.IsActionable ? "当前快照可行动。" : "当前快照仍安全阻断，不会发送输入。");
+            using var service = ScreenshotRecognitionService.Load(profilePath, catalogPath);
+            var report = service.Recognize(screenshot, capturedAt: DateTimeOffset.Now);
+            RecognitionResultText.Text = report.ToText();
+            Status.Text = $"离线识别完成：已列出商店、手牌、战场和发现区；{(report.IsActionable ? "当前快照可行动。" : "当前快照仍安全阻断，不会发送输入。")}";
         }
         catch (Exception exception)
         {

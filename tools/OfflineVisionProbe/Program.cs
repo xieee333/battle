@@ -61,6 +61,9 @@ if (string.Equals(args[0], "--validate-manifest", StringComparison.OrdinalIgnore
     return ValidateManifest(Path.GetFullPath(args[1]), repositoryRoot);
 }
 
+if (string.Equals(args[0], "--recognize-screenshot", StringComparison.OrdinalIgnoreCase))
+    return RecognizeScreenshot(args);
+
 if (string.Equals(args[0], "--crop", StringComparison.OrdinalIgnoreCase))
 {
     if (args.Length != 7 || !int.TryParse(args[2], out var x) || !int.TryParse(args[3], out var y)
@@ -226,6 +229,67 @@ static void PrintUsage()
     Console.WriteLine("  OfflineVisionProbe --crop <image> <x> <y> <width> <height> <output>");
     Console.WriteLine("  OfflineVisionProbe --curate-logs <logsDirectory> --manifest <manifestPath> [--source-commit <sha>]");
     Console.WriteLine("  OfflineVisionProbe --validate-manifest <manifestPath> [--repo-root <path>]");
+    Console.WriteLine("  OfflineVisionProbe --recognize-screenshot <image> [--profile <profile.json>] [--catalog <catalog.db>] [--json <result.json>]");
+}
+
+static int RecognizeScreenshot(string[] arguments)
+{
+    if (arguments.Length < 2)
+    {
+        Console.Error.WriteLine("Usage: OfflineVisionProbe --recognize-screenshot <image> [--profile <profile.json>] [--catalog <catalog.db>] [--json <result.json>]");
+        return 2;
+    }
+
+    var profilePath = Path.Combine(Directory.GetCurrentDirectory(), "data", "vision", "profile.json");
+    var catalogPath = Path.Combine(Directory.GetCurrentDirectory(), "data", "catalog", "catalog.db");
+    string? jsonPath = null;
+    for (var index = 2; index < arguments.Length; index++)
+    {
+        if (index + 1 >= arguments.Length)
+        {
+            Console.Error.WriteLine("识别参数缺少值。");
+            return 2;
+        }
+
+        switch (arguments[index].ToLowerInvariant())
+        {
+            case "--profile":
+                profilePath = Path.GetFullPath(arguments[++index]);
+                break;
+            case "--catalog":
+                catalogPath = Path.GetFullPath(arguments[++index]);
+                break;
+            case "--json":
+                jsonPath = Path.GetFullPath(arguments[++index]);
+                break;
+            default:
+                Console.Error.WriteLine($"未知识别参数：{arguments[index]}");
+                return 2;
+        }
+    }
+
+    try
+    {
+        using var service = ScreenshotRecognitionService.Load(profilePath, catalogPath);
+        var report = service.RecognizeFile(arguments[1]);
+        Console.WriteLine(report.ToText());
+        if (jsonPath is not null)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(jsonPath)!);
+            File.WriteAllText(jsonPath, report.ToJson());
+            Console.WriteLine($"JSON 已保存：{jsonPath}");
+        }
+
+        return report.Quality == FrameQuality.Garbage
+            && string.Equals(report.QualityReason, "decode-failed", StringComparison.OrdinalIgnoreCase)
+            ? 1
+            : 0;
+    }
+    catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+    {
+        Console.Error.WriteLine($"截图识别失败：{exception.Message}");
+        return 1;
+    }
 }
 
 static int ValidateManifest(string manifestPath, string repositoryRoot)

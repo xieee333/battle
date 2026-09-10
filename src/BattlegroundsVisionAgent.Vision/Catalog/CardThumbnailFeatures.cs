@@ -3,9 +3,9 @@ using OpenCvSharp;
 namespace BattlegroundsVisionAgent.Vision.Catalog;
 
 /// <summary>
-/// Normalizes the two different card presentations used by the game and the
-/// official catalog. The catalog contains a complete card image, while the
-/// shop shows only the portrait, tier badge and attack/health area.
+/// Normalizes card presentations used by the game and the official catalog.
+/// The catalog contains a complete card image, while runtime zones expose a
+/// visible portrait plus varying amounts of frame, tier and stat chrome.
 /// </summary>
 public static class CardThumbnailPreprocessor
 {

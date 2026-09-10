@@ -5,9 +5,10 @@ using OpenCvSharp;
 namespace BattlegroundsVisionAgent.Vision.Recognition;
 
 /// <summary>
-/// Matches the compact portrait shown in a shop slot against normalized
-/// artwork features. It deliberately requires both an absolute score and a
-/// margin over the runner-up; a visually similar card remains UNKNOWN.
+/// Matches the visible portrait in a shop, hand, board, or discover slot
+/// against normalized artwork features. It deliberately requires both an
+/// absolute score and a margin over the runner-up; a visually similar card
+/// remains UNKNOWN.
 /// </summary>
 public sealed class CardThumbnailMatcher : ICardMatcher, IZoneAwareCardMatcher, IDisposable
 {
@@ -40,8 +41,6 @@ public sealed class CardThumbnailMatcher : ICardMatcher, IZoneAwareCardMatcher, 
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(cardImage);
-        if (zone != CardZone.Shop)
-            return CardMatch.Unknown();
         if (cardImage.Empty())
             return CardMatch.Unknown();
 
