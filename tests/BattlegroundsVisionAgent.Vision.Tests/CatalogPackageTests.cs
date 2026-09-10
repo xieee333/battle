@@ -124,6 +124,36 @@ public sealed class CatalogPackageTests
         }
     }
 
+    [Fact]
+    public async Task UpdateFromPackageAsync_RebuildsNormalFeatureWhenArtworkChanges()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"catalog-feature-refresh-{Guid.NewGuid():N}");
+        var catalogDirectory = Path.Combine(root, "catalog");
+        var firstPackage = Path.Combine(root, "catalog-v1.zip");
+        var secondPackage = Path.Combine(root, "catalog-v2.zip");
+        try
+        {
+            var cards = new[] { Card("CARD_A", "测试甲", 2, "cards/a.png") };
+            using var oldArtwork = CreateArtwork(1);
+            await CreatePackageWithFeatureAsync(firstPackage, "2026.09.05", cards, artworkVariant: 1);
+            await new CardCatalogUpdater().UpdateFromPackageAsync(catalogDirectory, firstPackage);
+
+            await CreatePackageWithFeatureAsync(secondPackage, "2026.09.06", cards, artworkVariant: 2, staleFeatureImage: oldArtwork);
+            await new CardCatalogUpdater().UpdateFromPackageAsync(catalogDirectory, secondPackage);
+
+            using var newArtwork = CreateArtwork(2);
+            var expected = CardFeatureFactory.Create("CARD_A", newArtwork, isGolden: false);
+            var actual = Assert.Single(new CardFeatureStore(Path.Combine(catalogDirectory, "catalog.db")).GetAll());
+
+            Assert.Equal(expected.PerceptualHash, actual.PerceptualHash);
+            Assert.Equal(expected.Descriptor, actual.Descriptor);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static CatalogPackageCard Card(string id, string name, int tier, string imagePath) =>
         new(id, name, tier, imagePath);
 
@@ -169,6 +199,54 @@ public sealed class CatalogPackageTests
         }
 
         Directory.Delete(packageRoot, recursive: true);
+    }
+
+    private static async Task CreatePackageWithFeatureAsync(
+        string packagePath,
+        string version,
+        IReadOnlyCollection<CatalogPackageCard> cards,
+        int artworkVariant,
+        Mat? staleFeatureImage = null)
+    {
+        var packageRoot = Path.Combine(Path.GetDirectoryName(packagePath)!, Path.GetFileNameWithoutExtension(packagePath));
+        Directory.CreateDirectory(Path.Combine(packageRoot, "cards"));
+        var updatedAt = DateTimeOffset.Parse($"{version}T08:00:00+08:00");
+        var database = Path.Combine(packageRoot, "catalog.db");
+        var catalog = new CardCatalog(database);
+        catalog.Initialize();
+        foreach (var card in cards)
+        {
+            InsertCard(database, card.CardId, card.NameZhCn, card.Tier, card.ImagePath);
+            using var image = CreateArtwork(artworkVariant);
+            Cv2.ImWrite(Path.Combine(packageRoot, card.ImagePath.Replace('/', Path.DirectorySeparatorChar)), image);
+        }
+
+        if (staleFeatureImage is not null)
+            new CardFeatureStore(database).Upsert(CardFeatureFactory.Create(cards.First().CardId, staleFeatureImage, isGolden: false));
+
+        catalog.SetMetadata(version, updatedAt);
+        var manifest = new CatalogPackageManifest(version, updatedAt, cards);
+        using (var archive = ZipFile.Open(packagePath, ZipArchiveMode.Create))
+        {
+            AddFile(archive, database, "catalog.db");
+            foreach (var card in cards)
+                AddFile(archive, Path.Combine(packageRoot, card.ImagePath.Replace('/', Path.DirectorySeparatorChar)), card.ImagePath.Replace('\\', '/'));
+            var manifestEntry = archive.CreateEntry(CatalogPackageManifest.FileName);
+            await using var stream = manifestEntry.Open();
+            await JsonSerializer.SerializeAsync(stream, manifest);
+        }
+
+        Directory.Delete(packageRoot, recursive: true);
+    }
+
+    private static Mat CreateArtwork(int variant)
+    {
+        var image = new Mat(420, 320, MatType.CV_8UC1, Scalar.All(18 + variant * 8));
+        Cv2.Rectangle(image, new Rect(18 + variant * 3, 20, 270, 370), Scalar.All(200 - variant * 15), 4);
+        Cv2.Circle(image, new Point(160, 200), 70 + variant * 8, Scalar.All(130 + variant * 12), 5);
+        Cv2.Line(image, new Point(30, 60 + variant * 20), new Point(280, 340), Scalar.All(240), 4);
+        Cv2.PutText(image, $"C{variant}", new Point(70, 230), HersheyFonts.HersheySimplex, 2, Scalar.All(255), 4);
+        return image;
     }
 
     private static void AddFile(ZipArchive archive, string path, string entryName)

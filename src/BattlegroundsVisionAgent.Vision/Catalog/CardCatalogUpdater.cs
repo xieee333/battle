@@ -246,12 +246,8 @@ public sealed class CardCatalogUpdater
         var databasePath = Path.Combine(stagingDirectory, "catalog.db");
         new CardCatalog(databasePath).Initialize();
         var store = new CardFeatureStore(databasePath);
-        var existing = store.GetAll()
-            .Where(feature => !feature.IsGolden)
-            .Select(feature => feature.CardId)
-            .ToHashSet(StringComparer.Ordinal);
 
-        foreach (var card in manifest.Cards.Where(card => !existing.Contains(card.CardId)))
+        foreach (var card in manifest.Cards)
         {
             if (!TryResolveStagingPath(stagingDirectory, card.ImagePath, out var imagePath))
                 throw new InvalidDataException($"Card image path escapes staging: {card.ImagePath}");
