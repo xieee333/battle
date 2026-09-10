@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Globalization;
 using BattlegroundsVisionAgent.Core.Domain;
 using BattlegroundsVisionAgent.Vision.Catalog;
@@ -5,10 +6,57 @@ using BattlegroundsVisionAgent.Vision.Geometry;
 using BattlegroundsVisionAgent.Vision.Recognition;
 using OpenCvSharp;
 
-if (args.Length < 1)
+if (args.Length < 1 || string.Equals(args[0], "--help", StringComparison.OrdinalIgnoreCase))
 {
-    Console.Error.WriteLine("Usage: OfflineVisionProbe <profile.json> <catalog.db> <image1> [image2 ...] | --annotate <profile.json> <image> <output> | --shop-crops <profile.json> <image> <outputDirectory> | --crop <image> <x> <y> <width> <height> <output>");
-    return 2;
+    PrintUsage();
+    return args.Length == 0 ? 2 : 0;
+}
+
+if (string.Equals(args[0], "--curate-logs", StringComparison.OrdinalIgnoreCase))
+{
+    if (args.Length < 4 || !string.Equals(args[2], "--manifest", StringComparison.OrdinalIgnoreCase))
+    {
+        Console.Error.WriteLine("Usage: OfflineVisionProbe --curate-logs <logsDirectory> --manifest <manifestPath> [--source-commit <sha>]");
+        return 2;
+    }
+
+    var sourceCommit = "unknown";
+    for (var index = 4; index < args.Length; index++)
+    {
+        if (!string.Equals(args[index], "--source-commit", StringComparison.OrdinalIgnoreCase)
+            || index + 1 >= args.Length)
+        {
+            Console.Error.WriteLine("Usage: OfflineVisionProbe --curate-logs <logsDirectory> --manifest <manifestPath> [--source-commit <sha>]");
+            return 2;
+        }
+
+        sourceCommit = args[++index];
+    }
+
+    try
+    {
+        var manifest = LogCurationScanner.Scan(Path.GetFullPath(args[1]), sourceCommit);
+        manifest.Save(Path.GetFullPath(args[3]));
+        Console.WriteLine(LogCurationReportFormatter.Format(manifest));
+        return manifest.Samples.Any(sample => sample.Quality is FrameQuality.Garbage or FrameQuality.Review) ? 1 : 0;
+    }
+    catch (Exception exception) when (exception is IOException or InvalidDataException or DirectoryNotFoundException)
+    {
+        Console.Error.WriteLine($"日志筛选失败：{exception.Message}");
+        return 1;
+    }
+}
+
+if (string.Equals(args[0], "--validate-manifest", StringComparison.OrdinalIgnoreCase))
+{
+    if (args.Length is < 2 or > 4 || (args.Length == 4 && !string.Equals(args[2], "--repo-root", StringComparison.OrdinalIgnoreCase)))
+    {
+        Console.Error.WriteLine("Usage: OfflineVisionProbe --validate-manifest <manifestPath> [--repo-root <path>]");
+        return 2;
+    }
+
+    var repositoryRoot = args.Length == 4 ? Path.GetFullPath(args[3]) : Directory.GetCurrentDirectory();
+    return ValidateManifest(Path.GetFullPath(args[1]), repositoryRoot);
 }
 
 if (string.Equals(args[0], "--crop", StringComparison.OrdinalIgnoreCase))
@@ -164,6 +212,59 @@ static Rect ClampRect(Rect rect, int width, int height)
     var right = Math.Clamp(rect.X + rect.Width, x + 1, width);
     var bottom = Math.Clamp(rect.Y + rect.Height, y + 1, height);
     return new Rect(x, y, Math.Max(1, right - x), Math.Max(1, bottom - y));
+}
+
+static void PrintUsage()
+{
+    Console.WriteLine("Usage:");
+    Console.WriteLine("  OfflineVisionProbe <profile.json> <catalog.db> <image1> [image2 ...]");
+    Console.WriteLine("  OfflineVisionProbe --annotate <profile.json> <image> <output>");
+    Console.WriteLine("  OfflineVisionProbe --shop-crops <profile.json> <image> <outputDirectory>");
+    Console.WriteLine("  OfflineVisionProbe --match-thumbnail-crops <catalog.db> <crop1> [crop2 ...]");
+    Console.WriteLine("  OfflineVisionProbe --crop <image> <x> <y> <width> <height> <output>");
+    Console.WriteLine("  OfflineVisionProbe --curate-logs <logsDirectory> --manifest <manifestPath> [--source-commit <sha>]");
+    Console.WriteLine("  OfflineVisionProbe --validate-manifest <manifestPath> [--repo-root <path>]");
+}
+
+static int ValidateManifest(string manifestPath, string repositoryRoot)
+{
+    try
+    {
+        var manifest = LogCurationManifest.Load(manifestPath);
+        var root = Path.GetFullPath(repositoryRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        var errors = new List<string>();
+        foreach (var sample in manifest.Samples)
+        {
+            if (Path.IsPathRooted(sample.Path))
+            {
+                errors.Add($"绝对路径不允许：{sample.Path}");
+                continue;
+            }
+
+            var fullPath = Path.GetFullPath(Path.Combine(repositoryRoot, sample.Path.Replace('/', Path.DirectorySeparatorChar)));
+            if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                errors.Add($"路径越界：{sample.Path}");
+            else if (!File.Exists(fullPath))
+                errors.Add($"文件不存在：{sample.Path}");
+        }
+
+        if (errors.Count > 0)
+        {
+            foreach (var error in errors)
+                Console.Error.WriteLine(error);
+            return 1;
+        }
+
+        Console.WriteLine($"Manifest 有效：{manifest.Samples.Count} 个样本");
+        Console.WriteLine(LogCurationReportFormatter.Format(manifest));
+        return 0;
+    }
+    catch (Exception exception) when (exception is IOException or InvalidDataException or JsonException)
+    {
+        Console.Error.WriteLine($"Manifest 校验失败：{exception.Message}");
+        return 1;
+    }
 }
 
 return 0;

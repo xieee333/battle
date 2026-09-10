@@ -86,6 +86,35 @@ public sealed class LogCurationManifestTests
         }
     }
 
+    [Fact]
+    public void ReportFormatter_ContainsSceneQualityReasonsAndStableSamples()
+    {
+        var metrics = new FrameQualityMetrics(1920, 1080, 50, 20, 0, 0, 0.1, 1);
+        var manifest = new LogCurationManifest(
+            1,
+            "abc123",
+            1,
+            [
+                new LogCurationSample("z.png", "Combat", "Combat", FrameQuality.Good, true, false,
+                    "scene-not-actionable", metrics, "ok"),
+                new LogCurationSample("a.png", "Unknown", "Unknown", FrameQuality.Garbage, false, false,
+                    "frame-quality-garbage", metrics, "mostly-white"),
+                new LogCurationSample("m.png", "Shopping", "Shopping", FrameQuality.Review, true, false,
+                    "frame-quality-review", metrics, "low-texture")
+            ]);
+
+        var report = LogCurationReportFormatter.Format(manifest);
+
+        Assert.Contains("Shopping: 1", report, StringComparison.Ordinal);
+        Assert.Contains("Discover: 0", report, StringComparison.Ordinal);
+        Assert.Contains("Combat: 1", report, StringComparison.Ordinal);
+        Assert.Contains("Unknown: 1", report, StringComparison.Ordinal);
+        Assert.Contains("Garbage: 1", report, StringComparison.Ordinal);
+        Assert.Contains("mostly-white: 1", report, StringComparison.Ordinal);
+        Assert.Contains("待复核: 1", report, StringComparison.Ordinal);
+        Assert.True(report.IndexOf("a.png", StringComparison.Ordinal) < report.IndexOf("z.png", StringComparison.Ordinal));
+    }
+
     private static Mat CreateTexturedImage(byte tint = 0)
     {
         var image = new Mat(1080, 1920, MatType.CV_8UC3, Scalar.All(50 + tint));
