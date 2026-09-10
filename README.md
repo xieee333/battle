@@ -16,6 +16,21 @@
 - 金币优先通过底部金币槽的亮/暗状态计数：早期回合只有少量实际槽位时只数亮槽，后期出现 10 个槽位时忽略暗槽；金币条完全不存在时才回退到数字模板。
 - 回放场景覆盖购买、三连奖励、发现、卖出和卖出后的场面重定位。
 
+## 离线日志质量筛选
+
+可以直接使用 `OfflineVisionProbe` 扫描已有日志，不需要打开 EXE、启动炉石或配置 AI API：
+
+```powershell
+dotnet run --project .\tools\OfflineVisionProbe -- --curate-logs .\logs `
+  --manifest .\tests\fixtures\log-quality\live-logs.manifest.json `
+  --source-commit (git rev-parse HEAD)
+
+dotnet run --project .\tools\OfflineVisionProbe -- --validate-manifest `
+  .\tests\fixtures\log-quality\live-logs.manifest.json --repo-root .
+```
+
+筛选结果会区分 `Shopping`、`Discover`、`Combat`、`Unknown` 和垃圾样本，并记录亮度、纹理、重复帧和排除原因。命令即使发现垃圾/待复核样本也会写出 manifest；退出码为 1 是提醒人工复核，不代表程序崩溃。后续把新截图放入 `logs` 后重复运行即可更新清单。
+
 如果同时使用炉石传说盒子的快捷键（例如指向商店随从后按住并松开 W 购买），盒子仍然负责执行按键，本项目只读取执行前后的画面变化，不会抢占 W，也不会把一次刷新误判成购买。由于外部盒子没有向本项目提供按键事件，日志中的购买确认来自视觉证据；若卡牌本身仍识别为 UNKNOWN，只能确认“发生了购买/上场”，不能安全给出具体卡牌 ID。
 
 ## 卡库版本更新
