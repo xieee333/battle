@@ -17,14 +17,16 @@ public sealed record LayoutRecognition(
     bool HasPendingTripleReward,
     bool HasUnknownBlockingUi,
     NormalizedRect ArmorBounds = default,
-    NormalizedRect GoldCoinBounds = default)
+    NormalizedRect GoldCoinBounds = default,
+    NormalizedRect GoldResourceBounds = default)
 {
     public static LayoutRecognition Succeeded(long layoutVersion, double confidence, IReadOnlyList<CardSlot> slots,
         NormalizedRect goldBounds, NormalizedRect tavernTierBounds, int handCapacity, int boardCapacity,
         bool hasPendingTripleReward = false, bool hasUnknownBlockingUi = false,
-        NormalizedRect armorBounds = default, NormalizedRect goldCoinBounds = default) =>
+        NormalizedRect armorBounds = default, NormalizedRect goldCoinBounds = default,
+        NormalizedRect goldResourceBounds = default) =>
         new(true, layoutVersion, confidence, slots, goldBounds, tavernTierBounds, handCapacity, boardCapacity,
-            hasPendingTripleReward, hasUnknownBlockingUi, armorBounds, goldCoinBounds);
+            hasPendingTripleReward, hasUnknownBlockingUi, armorBounds, goldCoinBounds, goldResourceBounds);
 
     public static LayoutRecognition Failed() => new(false, 0, 0, [], default, default, 0, 0, false, true);
 }
@@ -48,7 +50,9 @@ public sealed class SnapshotRecognizer(
     ILayoutRecognizer layoutRecognizer,
     ICardMatcher cardMatcher,
     IDigitRecognizer digitRecognizer,
-    ISceneRecognizer sceneRecognizer) : IDisposable
+    ISceneRecognizer sceneRecognizer,
+    ICardOccupancyDetector? occupancyDetector = null,
+    ITavernTierRecognizer? tavernTierRecognizer = null) : IDisposable
 {
     private const string UnknownCardId = "UNKNOWN";
     public SnapshotRecognitionResult Recognize(Mat frame, DateTimeOffset capturedAt)
@@ -62,14 +66,20 @@ public sealed class SnapshotRecognizer(
         if (!layout.IsSuccess)
             return Failed(capturedAt);
 
-        var gold = digitRecognizer.Recognize(frame, layout.GoldBounds, "gold");
-        if (layout.GoldCoinBounds.Width > 0 && layout.GoldCoinBounds.Height > 0)
+        var gold = layout.GoldResourceBounds.Width > 0 && layout.GoldResourceBounds.Height > 0
+            ? digitRecognizer.Recognize(frame, layout.GoldResourceBounds, "gold-resource")
+            : digitRecognizer.Recognize(frame, layout.GoldBounds, "gold");
+        if (!gold.IsKnown && layout.GoldResourceBounds.Width > 0 && layout.GoldResourceBounds.Height > 0)
+            gold = digitRecognizer.Recognize(frame, layout.GoldBounds, "gold");
+        if (!gold.IsKnown && layout.GoldResourceBounds.Width <= 0
+            && layout.GoldCoinBounds.Width > 0 && layout.GoldCoinBounds.Height > 0)
         {
             var coinRecognition = GoldCoinRecognizer.Recognize(frame, layout.GoldCoinBounds);
             if (coinRecognition.IsKnown)
                 gold = new DigitRecognition(coinRecognition.Value, layout.GoldBounds, coinRecognition.Confidence);
         }
-        var tier = digitRecognizer.Recognize(frame, layout.TavernTierBounds, "tavern-tier");
+        var tier = tavernTierRecognizer?.Recognize(frame, layout.TavernTierBounds)
+            ?? digitRecognizer.Recognize(frame, layout.TavernTierBounds, "tavern-tier");
         var armor = layout.ArmorBounds.Width > 0 && layout.ArmorBounds.Height > 0
             ? digitRecognizer.Recognize(frame, layout.ArmorBounds, "armor")
             : null;
@@ -80,22 +90,26 @@ public sealed class SnapshotRecognizer(
             var match = cardMatcher is IZoneAwareCardMatcher zoneAwareMatcher
                 ? zoneAwareMatcher.Match(cardImage, slot.Zone)
                 : cardMatcher.Match(cardImage);
+            var occupancy = occupancyDetector?.Detect(cardImage, slot.Zone)
+                ?? new CardOccupancyDetection(true, 1);
             var observation = new CardObservation(match.CardId ?? UnknownCardId, slot.Zone, slot.SlotIndex,
-                match.IsGolden, slot.Bounds, match.Confidence, match.Kind);
+                match.IsGolden, slot.Bounds, match.Confidence, match.Kind, occupancy.IsOccupied);
             cards.Add(new RecognizedCard(observation, slot.Bounds, slot.SlotIndex, match.Confidence));
         }
 
         var confidence = new[] { layout.Confidence, gold.Confidence, tier.Confidence, scene.Confidence,
                 armor?.Confidence ?? 1 }
-            .Concat(cards.Select(card => card.Confidence)).DefaultIfEmpty(0).Min();
+            .Concat(cards.Where(card => card.Observation.IsOccupied).Select(card => card.Confidence))
+            .DefaultIfEmpty(0).Min();
         var unknownBlockingUi = layout.HasUnknownBlockingUi || !gold.IsKnown || !tier.IsKnown || scene.GamePhase == GamePhase.Unknown
             || cards.Any(card => card.Observation.CardId == UnknownCardId
+                && card.Observation.IsOccupied
                 && card.Observation.Kind != CardKind.Spell);
         var snapshot = new GameSnapshot(layout.LayoutVersion, confidence, capturedAt, scene.GamePhase,
             gold.Value, tier.Value,
             cards.Where(card => card.Observation.CardZone == CardZone.Shop).Select(card => card.Observation).ToArray(),
-            cards.Where(card => card.Observation.CardZone == CardZone.Hand).Select(card => card.Observation).ToArray(),
-            cards.Where(card => card.Observation.CardZone == CardZone.Board).Select(card => card.Observation).ToArray(),
+            cards.Where(card => card.Observation.CardZone == CardZone.Hand && card.Observation.IsOccupied).Select(card => card.Observation).ToArray(),
+            cards.Where(card => card.Observation.CardZone == CardZone.Board && card.Observation.IsOccupied).Select(card => card.Observation).ToArray(),
             cards.Where(card => card.Observation.CardZone == CardZone.Discover).Select(card => card.Observation).ToArray(),
             layout.HandCapacity, layout.BoardCapacity, layout.HasPendingTripleReward, unknownBlockingUi,
             armor?.Value);

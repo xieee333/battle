@@ -40,24 +40,26 @@ public sealed class CardThumbnailMatcher : ICardMatcher, IZoneAwareCardMatcher, 
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(cardImage);
-        if (zone != CardZone.Shop)
+        if (zone == CardZone.Hand || zone == CardZone.Discover)
+            return CardMatch.Unknown();
+        if (zone is not (CardZone.Shop or CardZone.Board))
             return CardMatch.Unknown();
         if (cardImage.Empty())
             return CardMatch.Unknown();
 
         using var query = CardThumbnailPreprocessor.FromScreenSlot(cardImage);
         if (query.Empty())
-            return CardMatch.Unknown();
+            return UnknownForZone(cardImage, zone);
 
         using var orb = ORB.Create();
         using var queryDescriptor = new Mat();
         orb.DetectAndCompute(query, null, out var queryPoints, queryDescriptor);
         if (queryDescriptor.Empty() || queryPoints.Length < MinimumGoodMatches)
-            return CardMatch.Unknown();
+            return UnknownForZone(cardImage, zone);
 
         var preparedFeatures = GetPreparedFeatures();
         if (preparedFeatures.Length == 0)
-            return CardMatch.Unknown();
+            return UnknownForZone(cardImage, zone);
 
         using var matcher = new BFMatcher(NormTypes.Hamming, crossCheck: false);
         matcher.Add(preparedFeatures.Select(feature => feature.Descriptor).ToArray());
@@ -90,16 +92,29 @@ public sealed class CardThumbnailMatcher : ICardMatcher, IZoneAwareCardMatcher, 
         }
 
         if (ranked.Count == 0)
-            return CardMatch.Unknown();
+            return UnknownForZone(cardImage, zone);
 
         var ordered = ranked.OrderByDescending(item => item.Score).ToArray();
         var best = ordered[0];
         var runnerUp = ordered.Length > 1 ? ordered[1].Score : 0;
         var margin = best.Score - runnerUp;
         if (best.Score < _minimumConfidence || margin < _minimumMargin)
-            return CardMatch.Unknown(best.Score);
+        {
+            var fallback = UnknownForZone(cardImage, zone, best.Score);
+            return fallback.Kind == CardKind.Spell ? fallback : CardMatch.Unknown(best.Score);
+        }
 
         return new CardMatch(best.Feature.CardId, best.Feature.IsGolden, best.Score, CardKind.Minion);
+    }
+
+    private static CardMatch UnknownForZone(Mat cardImage, CardZone zone, double confidence = 0)
+    {
+        if (zone != CardZone.Shop)
+            return CardMatch.Unknown(confidence);
+        var kind = CardKindDetector.DetectShopCard(cardImage);
+        return kind.Kind == CardKind.Spell
+            ? CardMatch.Spell(Math.Max(confidence, kind.Confidence))
+            : CardMatch.Unknown(confidence);
     }
 
     public void Dispose()

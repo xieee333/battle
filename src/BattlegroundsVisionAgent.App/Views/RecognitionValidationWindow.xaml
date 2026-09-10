@@ -1,0 +1,167 @@
+<Window x:Class="BattlegroundsVisionAgent.App.Views.RecognitionValidationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="截图识别校验" Width="1540" Height="940" MinWidth="1120" MinHeight="680"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource WindowBackgroundBrush}" Foreground="{StaticResource TextPrimaryBrush}">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="14" Padding="18" Margin="0,0,0,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="截图识别校验" FontSize="24" FontWeight="SemiBold" />
+                    <TextBlock Text="导入一张截图，逐项确认金币、本数、场景、卡牌和位置；反馈会保存为 JSON，供后续修正卡库、布局和阈值。"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,6,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="导入截图" Click="Import_Click" />
+                    <Button x:Name="AnalyzeButton" Content="开始识别" Click="Analyze_Click" IsEnabled="False"
+                            Background="{StaticResource AccentStrongBrush}" BorderBrush="{StaticResource AccentBrush}" />
+                    <Button x:Name="RefreshRecommendationsButton" Content="刷新精进建议" Click="RefreshRecommendations_Click"
+                            IsEnabled="False" />
+                    <Button x:Name="SaveFeedbackButton" Content="保存校验反馈" Click="SaveFeedback_Click" IsEnabled="False"
+                            Background="{StaticResource AccentStrongBrush}" BorderBrush="{StaticResource AccentBrush}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="650" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="#080D18" BorderBrush="{StaticResource BorderStrongBrush}"
+                    BorderThickness="1" CornerRadius="12" Padding="8">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <Grid x:Name="ImageSurface" Width="640" Height="360" Background="#050812">
+                        <Image x:Name="Preview" Stretch="Fill" />
+                        <Canvas x:Name="OverlayCanvas" IsHitTestVisible="False" ClipToBounds="True" />
+                        <TextBlock x:Name="EmptyImageText" Text="请先导入 PNG 截图" Foreground="{StaticResource TextMutedBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18" />
+                    </Grid>
+                </ScrollViewer>
+            </Border>
+
+            <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="识别摘要" Style="{StaticResource SectionTitleText}" />
+                            <TextBlock Text="{Binding SummaryText}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ZoneSummaryText}" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0" />
+                            <TextBlock Text="{Binding SafetyText}" Foreground="{StaticResource WarningBrush}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding CatalogStatusText}" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding SampleStatusText}" Foreground="{StaticResource AccentBrush}" Margin="0,5,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ImagePath}" Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="程序给出的精进建议" Style="{StaticResource SectionTitleText}" />
+                            <ItemsControl ItemsSource="{Binding Recommendations}" Margin="0,8,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource SurfaceInputBrush}" CornerRadius="7" Padding="9,7" Margin="0,0,0,6">
+                                            <TextBlock Text="•  {Binding}" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="12" Padding="14">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="74" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="68" />
+                                    <ColumnDefinition Width="92" />
+                                    <ColumnDefinition Width="92" />
+                                    <ColumnDefinition Width="145" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="区域" Foreground="{StaticResource TextMutedBrush}" />
+                                <TextBlock Grid.Column="1" Text="槽位" Foreground="{StaticResource TextMutedBrush}" />
+                                <TextBlock Grid.Column="2" Text="识别结果" Foreground="{StaticResource TextMutedBrush}" />
+                                <TextBlock Grid.Column="3" Text="置信度" Foreground="{StaticResource TextMutedBrush}" />
+                                <TextBlock Grid.Column="4" Text="识别是否正确" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
+                                <TextBlock Grid.Column="5" Text="位置是否正确" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
+                                <TextBlock Grid.Column="6" Text="期望结果" Foreground="{StaticResource TextMutedBrush}" />
+                                <TextBlock Grid.Column="7" Text="备注" Foreground="{StaticResource TextMutedBrush}" />
+                            </Grid>
+                            <Separator Margin="0,8,0,3" />
+                            <ItemsControl ItemsSource="{Binding Cards}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#0D1628" CornerRadius="8" Padding="7,6" Margin="0,3">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="96" />
+                                                    <ColumnDefinition Width="74" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="68" />
+                                                    <ColumnDefinition Width="92" />
+                                                    <ColumnDefinition Width="92" />
+                                                    <ColumnDefinition Width="145" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding ZoneLabel}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding SlotLabel}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                <StackPanel Grid.Column="2" Margin="0,0,7,0">
+                                                    <TextBlock Text="{Binding PredictedName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding PredictedCardId}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding KindAndGoldenText}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="3" Text="{Binding ConfidenceText}" Foreground="{StaticResource AccentBrush}" />
+                                                <ComboBox Grid.Column="4" ItemsSource="{Binding RecognitionStatuses}" SelectedItem="{Binding RecognitionStatus, UpdateSourceTrigger=PropertyChanged}" Margin="3,0" />
+                                                <ComboBox Grid.Column="5" ItemsSource="{Binding PositionStatuses}" SelectedItem="{Binding PositionStatus, UpdateSourceTrigger=PropertyChanged}" Margin="3,0" />
+                                                <TextBox Grid.Column="6" Text="{Binding ExpectedText, UpdateSourceTrigger=PropertyChanged}" Margin="3,0" ToolTip="填写正确的卡牌名称或 ID" />
+                                                <TextBox Grid.Column="7" Text="{Binding Note, UpdateSourceTrigger=PropertyChanged}" Margin="3,0" ToolTip="例如：位置偏右、金色牌、动画中" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="如果截图中没有卡牌或没有对应槽位，仍可在识别状态选择‘空槽’；未知结果建议填写期望名称。"
+                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="整张图备注" Style="{StaticResource SectionTitleText}" />
+                            <TextBox Text="{Binding OverallNote, UpdateSourceTrigger=PropertyChanged}" Margin="0,8,0,0"
+                                     MinHeight="64" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     ToolTip="例如：购买阶段第 5 回合，截图包含鼠标悬停或动画" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="10" Padding="12,9" Margin="0,14,0,0">
+            <TextBlock Text="{Binding ResultStatus}" TextWrapping="Wrap" />
+        </Border>
+    </Grid>
+</Window>

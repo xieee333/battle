@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using BattlegroundsVisionAgent.Core.Domain;
 using BattlegroundsVisionAgent.Vision.Catalog;
 using BattlegroundsVisionAgent.Vision.Geometry;
+using BattlegroundsVisionAgent.Vision.Validation;
 using OpenCvSharp;
 
 namespace BattlegroundsVisionAgent.Vision.Recognition;
@@ -22,7 +23,10 @@ public sealed class VisionRecognitionPipeline : IDisposable
 
     public SnapshotRecognizer Recognizer { get; }
 
-    public static VisionRecognitionPipeline Load(string profilePath, string catalogDatabasePath)
+    public static VisionRecognitionPipeline Load(
+        string profilePath,
+        string catalogDatabasePath,
+        string? validationSampleDirectory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(profilePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(catalogDatabasePath);
@@ -30,11 +34,17 @@ public sealed class VisionRecognitionPipeline : IDisposable
         try
         {
             var layoutRecognizer = new TemplateLayoutRecognizer(assets.Layout, assets.AnchorTemplates);
+            var officialFeatures = new CardThumbnailFeatureStore(catalogDatabasePath);
+            var sampleFeatures = new ValidationSampleFeatureStore(
+                validationSampleDirectory ?? RecognitionValidationSampleRepository.DefaultDirectory,
+                catalogDatabasePath);
             var recognizer = new SnapshotRecognizer(
                 layoutRecognizer,
-                new CardThumbnailMatcher(new CardThumbnailFeatureStore(catalogDatabasePath)),
+                new CardThumbnailMatcher(new CompositeCardFeatureStore(officialFeatures, sampleFeatures)),
                 new DigitRecognizer(assets.DigitTemplates),
-                new SceneRecognizer(assets.SceneTemplates));
+                new SceneRecognizer(assets.SceneTemplates),
+                new CardOccupancyDetector(),
+                new TavernTierRecognizer());
             return new VisionRecognitionPipeline(layoutRecognizer, recognizer);
         }
         catch

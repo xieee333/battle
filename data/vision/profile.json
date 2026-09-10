@@ -202,11 +202,17 @@
       "width": 0.22,
       "height": 0.054
     },
+    "goldResourceBounds": {
+      "x": 0.6302083333333334,
+      "y": 0.875,
+      "width": 0.0494791666666667,
+      "height": 0.0648148148148148
+    },
     "tavernTierBounds": {
-      "x": 0.579,
-      "y": 0.114,
-      "width": 0.023,
-      "height": 0.04
+      "x": 0.4385416666666667,
+      "y": 0.1796296296296296,
+      "width": 0.040625,
+      "height": 0.0703703703703704
     },
     "handCapacity": 10,
     "boardCapacity": 7,
@@ -261,6 +267,16 @@
       "label": "gold",
       "value": 9,
       "imagePath": "digits/gold-9-20260907-193900-058-Shopping.png"
+    },
+    {
+      "label": "gold-resource",
+      "value": 11,
+      "imagePath": "digits/gold-resource-11.png"
+    },
+    {
+      "label": "gold-resource",
+      "value": 5,
+      "imagePath": "digits/gold-resource-5.png"
     },
     {
       "label": "tavern-tier",

@@ -142,6 +142,20 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void RecognitionValidation_Click(object sender, RoutedEventArgs e)
+    {
+        _runState.Pause();
+        try
+        {
+            await ((MainViewModel)DataContext).StopRuntimeAsync();
+            new RecognitionValidationWindow { Owner = this }.ShowDialog();
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "识别校验未启动", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private async void SyncOfficialCatalog_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Button button || !button.IsEnabled) return;

@@ -8,7 +8,7 @@ namespace BattlegroundsVisionAgent.Vision.Tests;
 public sealed class CardMatcherTests
 {
     [Fact]
-    public void ThumbnailMatcher_DoesNotApplyShopFeaturesToOtherZones()
+    public void ThumbnailMatcher_AppliesCatalogFeaturesToBoardCards()
     {
         using var image = SyntheticImages.FeaturedCard();
         var store = InMemoryFeatureStore.WithCard("CARD_A", image);
@@ -16,8 +16,9 @@ public sealed class CardMatcherTests
 
         var result = matcher.Match(image, CardZone.Board);
 
-        Assert.False(result.IsKnown);
-        Assert.Null(result.CardId);
+        Assert.True(result.IsKnown);
+        Assert.Equal("CARD_A", result.CardId);
+        Assert.Equal(CardKind.Minion, result.Kind);
     }
 
     [Fact]

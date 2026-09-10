@@ -66,6 +66,8 @@
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,13,0,0">
                         <Button Click="CapturePreview_Click" Content="截图预览" />
+                        <Button Click="RecognitionValidation_Click" Content="识别校验"
+                                ToolTip="导入截图并逐项核对金币、本数、卡牌和位置" />
                         <Button Click="UpdateCatalog_Click" Content="更新卡库" ToolTip="导入经过校验的版本化卡库更新包。" />
                         <Button Click="SyncOfficialCatalog_Click" Content="同步国服卡库" ToolTip="从国服官网同步酒馆战棋随从，无需账号或密钥。" />
                         <Button Command="{Binding StartCommand}" Content="开始运行" Background="{StaticResource AccentStrongBrush}"

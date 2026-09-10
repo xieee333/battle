@@ -25,7 +25,6 @@ public static class VisionProfileBuilder
     private const int HandSlotCount = 10;
     private const int BoardSlotCount = 7;
     private const int DiscoverSlotCount = 3;
-    private static readonly NormalizedRect DefaultGoldCoinBounds = new(0.681, 0.895, 0.22, 0.054);
 
     public static VisionProfileBuildResult BuildShoppingProfile(
         Mat screenshot,
@@ -59,17 +58,21 @@ public static class VisionProfileBuilder
             ? CreateHorizontalSlots(ToNormalized(discover), DiscoverSlotCount)
             : [];
         var emptyBounds = new NormalizedRect(0, 0, 0, 0);
+        var goldBounds = calibration.Regions.TryGetValue("gold", out var gold)
+            ? ToNormalized(gold)
+            : emptyBounds;
         var profile = new LayoutTemplateProfile(
             regions,
             shopSlots,
             handSlots,
             boardSlots,
             discoverSlots,
-            calibration.Regions.TryGetValue("gold", out var gold) ? ToNormalized(gold) : emptyBounds,
+            goldBounds,
             calibration.Regions.TryGetValue("tier", out var tier) ? ToNormalized(tier) : emptyBounds,
             HandCapacity: HandSlotCount,
             BoardCapacity: BoardSlotCount,
-            GoldCoinBounds: calibration.Regions.ContainsKey("gold") ? DefaultGoldCoinBounds : emptyBounds);
+            GoldCoinBounds: emptyBounds,
+            GoldResourceBounds: goldBounds);
         profile.Validate();
 
         foreach (var (name, region) in new[] { ("shop", regions.Shop), ("hand", regions.Hand), ("board", regions.Board) })
