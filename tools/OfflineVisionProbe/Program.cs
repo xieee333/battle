@@ -35,7 +35,9 @@ if (string.Equals(args[0], "--curate-logs", StringComparison.OrdinalIgnoreCase))
 
     try
     {
-        var manifest = LogCurationScanner.Scan(Path.GetFullPath(args[1]), sourceCommit);
+        var logsRoot = Path.GetFullPath(args[1]);
+        var pathPrefix = Path.GetFileName(logsRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        var manifest = LogCurationScanner.Scan(logsRoot, sourceCommit, pathPrefix: pathPrefix);
         manifest.Save(Path.GetFullPath(args[3]));
         Console.WriteLine(LogCurationReportFormatter.Format(manifest));
         return manifest.Samples.Any(sample => sample.Quality is FrameQuality.Garbage or FrameQuality.Review) ? 1 : 0;

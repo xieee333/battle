@@ -73,7 +73,8 @@ public static class LogCurationScanner
     public static LogCurationManifest Scan(
         string root,
         string sourceCommit = "unknown",
-        DateTimeOffset? generatedAt = null)
+        DateTimeOffset? generatedAt = null,
+        string? pathPrefix = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         var fullRoot = Path.GetFullPath(root);
@@ -93,7 +94,10 @@ public static class LogCurationScanner
         var firstByHash = new Dictionary<ulong, string>();
         foreach (var file in files)
         {
-            var sourceLabel = ParseSceneLabel(file.RelativePath);
+            var manifestPath = string.IsNullOrWhiteSpace(pathPrefix)
+                ? file.RelativePath
+                : Normalize(Path.Combine(pathPrefix, file.RelativePath));
+            var sourceLabel = ParseSceneLabel(manifestPath);
             var expectedScene = IsSceneLabel(sourceLabel) ? sourceLabel : "Unknown";
             var result = FrameQualityAnalyzer.AnalyzeFile(file.FullPath);
             var quality = result.Quality;
@@ -111,7 +115,7 @@ public static class LogCurationScanner
             }
             else if (include && result.Metrics.PerceptualHash != 0)
             {
-                firstByHash[result.Metrics.PerceptualHash] = file.RelativePath;
+                firstByHash[result.Metrics.PerceptualHash] = manifestPath;
             }
 
             var expectedActionable = include && quality == FrameQuality.Good && expectedScene == "Shopping";
@@ -124,7 +128,7 @@ public static class LogCurationScanner
                         : "scene-not-actionable";
 
             samples.Add(new LogCurationSample(
-                file.RelativePath,
+                manifestPath,
                 sourceLabel,
                 expectedScene,
                 quality,
