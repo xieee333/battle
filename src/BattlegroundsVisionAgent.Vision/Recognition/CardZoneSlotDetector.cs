@@ -50,6 +50,9 @@ public static class CardZoneSlotDetector
         if (frame.Empty() || handRegion.Width <= 0 || handRegion.Height <= 0 || calibratedSlots.Count == 0)
             return calibratedSlots;
 
+        // Prefer the continuous card-edge span. Hough circles also appear in
+        // card artwork (and in overlays), so they are only a fallback when
+        // the hand fan has no usable edge signal.
         var auraSlots = DetectHandByAuraSpan(frame, handRegion, calibratedSlots);
         if (auraSlots.Count > 0)
             return auraSlots;
@@ -147,10 +150,15 @@ public static class CardZoneSlotDetector
         else
             source.CopyTo(bgr);
         Cv2.CvtColor(bgr, hsv, ColorConversionCodes.BGR2HSV);
-        Cv2.InRange(hsv, new Scalar(35, 90, 70), new Scalar(125, 255, 255), mask);
+        // The rim can be semi-transparent, so keep saturation permissive while
+        // requiring a colored hue and a bright enough pixel. This samples only
+        // the upper card fan and never the bottom-right capacity indicator.
+        Cv2.InRange(hsv, new Scalar(35, 30, 40), new Scalar(125, 255, 255), mask);
 
         var top = Math.Clamp((int)Math.Round(pixels.Height * 0.10), 0, pixels.Height - 1);
         var height = Math.Max(1, Math.Min((int)Math.Round(pixels.Height * 0.38), pixels.Height - top));
+        using var fanBand = new Mat(mask, new Rect(0, top, mask.Width, height));
+        var fanCoverage = Cv2.CountNonZero(fanBand) / (double)(fanBand.Width * fanBand.Height);
         var runs = new List<(int Start, int End)>();
         var runStart = -1;
         var maskWidth = mask.Width;
@@ -171,26 +179,29 @@ public static class CardZoneSlotDetector
 
         if (runs.Count == 0)
             return [];
-        var merged = new List<(int Start, int End)>();
-        foreach (var run in runs)
-        {
-            if (merged.Count == 0 || run.Start - merged[^1].End > frameWidth * 0.02)
-                merged.Add(run);
-            else
-                merged[^1] = (merged[^1].Start, Math.Max(merged[^1].End, run.End));
-        }
-
-        var span = merged.OrderByDescending(run => run.End - run.Start).First();
-        if (span.End - span.Start < frameWidth * 0.18)
+        // Use the strongest single fan-edge run. Joining every colored run can
+        // pull in the lower-right resource/capacity artwork and inflate the
+        // hand count; that UI is deliberately outside this measurement.
+        var span = runs.OrderByDescending(run => run.End - run.Start).First();
+        if (span.End - span.Start < frameWidth * 0.10)
             return [];
-        var cardWidth = Math.Clamp((int)Math.Round(frameWidth * 0.075), frameWidth / 18, frameWidth / 7);
-        var defaultSpacing = frameWidth * 0.075;
+        // The run is measured on the exposed upper fan edge, not the full
+        // card crop. In the 16:9 layout its effective card width is about
+        // 6.1% of the frame and overlapped centers are about 2.6% apart.
+        // These values are derived from the visual fan geometry, never from
+        // the hand-capacity text at the lower-right corner.
+        var cardWidth = Math.Clamp((int)Math.Round(frameWidth * 0.061), frameWidth / 24, frameWidth / 7);
+        // A fully exposed hand uses wide card centers; a dense fan uses the
+        // smaller overlap spacing. Coverage is measured only in the upper fan
+        // band, so the capacity text in the lower-right corner is irrelevant.
+        var spacingRatio = fanCoverage >= 0.50 ? 0.077 : 0.026;
+        var defaultSpacing = Math.Clamp(frameWidth * spacingRatio, frameWidth * 0.018, frameWidth * 0.10);
         var count = Math.Clamp((int)Math.Round((span.End - span.Start - cardWidth) / defaultSpacing) + 1,
             1, calibratedSlots.Count);
         if (count <= 0)
             return [];
         var spacing = count == 1 ? 0 : (span.End - span.Start - cardWidth) / (double)(count - 1);
-        if (spacing < frameWidth * 0.045 || spacing > frameWidth * 0.12)
+        if (spacing < frameWidth * 0.018 || spacing > frameWidth * 0.10)
             return [];
 
         var heightPixels = Math.Clamp((int)Math.Round(frameHeight * 0.15), 50, frameHeight - pixels.Y);

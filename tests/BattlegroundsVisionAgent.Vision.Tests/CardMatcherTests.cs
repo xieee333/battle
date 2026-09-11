@@ -22,6 +22,33 @@ public sealed class CardMatcherTests
     }
 
     [Fact]
+    public void ThumbnailMatcher_AppliesCatalogFeaturesToHandAndDiscoverCards()
+    {
+        using var image = SyntheticImages.FeaturedCard();
+        var store = InMemoryFeatureStore.WithCard("CARD_A", image);
+        using var matcher = new CardThumbnailMatcher(store, minimumConfidence: 0, minimumMargin: 0);
+
+        var hand = matcher.Match(image, CardZone.Hand);
+        var discover = matcher.Match(image, CardZone.Discover);
+
+        Assert.Equal("CARD_A", hand.CardId);
+        Assert.Equal("CARD_A", discover.CardId);
+    }
+
+    [Fact]
+    public void Matcher_PreservesCatalogSpellKind()
+    {
+        using var image = SyntheticImages.FeaturedCard();
+        var store = InMemoryFeatureStore.WithCard("SPELL_A", image, kind: CardKind.Spell);
+        var matcher = new CardMatcher(store, minimumConfidence: 0.92);
+
+        var result = matcher.Match(image);
+
+        Assert.Equal("SPELL_A", result.CardId);
+        Assert.Equal(CardKind.Spell, result.Kind);
+    }
+
+    [Fact]
     public void Constructor_RejectsThresholdBelowSafetyFloor()
     {
         using var image = SyntheticImages.FeaturedCard();

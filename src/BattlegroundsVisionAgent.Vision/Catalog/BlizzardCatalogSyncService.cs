@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Data.Sqlite;
+using BattlegroundsVisionAgent.Core.Domain;
 
 namespace BattlegroundsVisionAgent.Vision.Catalog;
 
@@ -62,12 +63,13 @@ public sealed class BlizzardCatalogSyncService : IDisposable
     {
         ThrowIfDisposed();
         var cards = new Dictionary<int, BlizzardCard>();
+        var seenIds = new HashSet<int>();
         int? total = null;
         for (var page = 1; page <= MaxPages; page++)
         {
             using var response = await _httpClient.PostAsJsonAsync(ChinaEndpoint, new
             {
-                page, page_size = 200, bg_card_type = "minion", bg_game_mode = "",
+                page, page_size = 200, bg_card_type = "", bg_game_mode = "",
                 minion_type = "", tier = Array.Empty<int>(), text_filter = "",
                 attack = -1, health = -1, sort = "tier:asc"
             }, cancellationToken).ConfigureAwait(false);
@@ -86,15 +88,25 @@ public sealed class BlizzardCatalogSyncService : IDisposable
             {
                 var card = item.Deserialize<BlizzardCard>(JsonOptions)
                     ?? throw new InvalidDataException("国服卡牌数据为空。");
-                if (card.Id <= 0 || string.IsNullOrWhiteSpace(card.Name)
-                    || card.Battlegrounds is not { Hero: false, Tier: > 0 }
-                    || string.IsNullOrWhiteSpace(card.Battlegrounds.Image)
-                    || !cards.TryAdd(card.Id, card with { Tier = card.Battlegrounds.Tier, ImageUrl = card.Battlegrounds.Image }))
+                if (card.Id <= 0 || !seenIds.Add(card.Id))
                     throw new InvalidDataException("国服卡牌缺少必要信息或分页重复，保留原有卡库。");
+                var kind = ResolveChinaKind(EffectiveCardTypeId(card));
+                if (kind is not (CardKind.Minion or CardKind.Spell))
+                    continue;
+                if (string.IsNullOrWhiteSpace(card.Name)
+                    || card.Battlegrounds is not { Hero: false, Tier: > 0 }
+                    || string.IsNullOrWhiteSpace(card.Battlegrounds.Image))
+                    throw new InvalidDataException("国服卡牌缺少必要信息，保留原有卡库。");
+                cards.Add(card.Id, card with
+                {
+                    Tier = card.Battlegrounds.Tier,
+                    ImageUrl = card.Battlegrounds.Image,
+                    Kind = kind
+                });
             }
-            if (cards.Count == total && cards.Count > 0)
+            if (seenIds.Count == total && cards.Count > 0)
                 return await ApplyCardsAsync(catalogDirectory, cards.Values.OrderBy(card => card.Id).ToArray(), cancellationToken).ConfigureAwait(false);
-            if (list.GetArrayLength() == 0 || cards.Count > total)
+            if (list.GetArrayLength() == 0 || seenIds.Count > total)
                 break;
         }
         throw new InvalidDataException("未能完整获取国服卡库，保留原有卡库。");
@@ -153,7 +165,8 @@ public sealed class BlizzardCatalogSyncService : IDisposable
                     card.Id.ToString(CultureInfo.InvariantCulture),
                     card.Name!,
                     card.Tier,
-                    imagePath));
+                    imagePath,
+                    card.Kind));
             }
 
             InsertCards(catalogDatabase, packageCards);
@@ -244,11 +257,13 @@ public sealed class BlizzardCatalogSyncService : IDisposable
         return cards.Values
             .Where(card => !string.IsNullOrWhiteSpace(card.Name)
                 && card.Battlegrounds is { Hero: false, Tier: > 0 }
+                && ResolveGlobalKind(EffectiveCardTypeId(card)) is (CardKind.Minion or CardKind.Spell)
                 && !string.IsNullOrWhiteSpace(card.Battlegrounds.Image ?? card.Image))
             .Select(card => card with
             {
                 Tier = card.Battlegrounds!.Tier,
-                ImageUrl = card.Battlegrounds.Image ?? card.Image
+                ImageUrl = card.Battlegrounds.Image ?? card.Image,
+                Kind = ResolveGlobalKind(EffectiveCardTypeId(card))
             })
             .OrderBy(card => card.Id)
             .ToArray();
@@ -280,11 +295,12 @@ public sealed class BlizzardCatalogSyncService : IDisposable
         {
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
-            command.CommandText = "INSERT INTO cards(card_id, name_zh_cn, tier, image_path) VALUES($id, $name, $tier, $image)";
+            command.CommandText = "INSERT INTO cards(card_id, name_zh_cn, tier, image_path, kind) VALUES($id, $name, $tier, $image, $kind)";
             command.Parameters.AddWithValue("$id", card.CardId);
             command.Parameters.AddWithValue("$name", card.NameZhCn);
             command.Parameters.AddWithValue("$tier", card.Tier);
             command.Parameters.AddWithValue("$image", card.ImagePath);
+            command.Parameters.AddWithValue("$kind", card.Kind.ToString());
             command.ExecuteNonQuery();
         }
 
@@ -306,7 +322,8 @@ public sealed class BlizzardCatalogSyncService : IDisposable
             card.Id.ToString(CultureInfo.InvariantCulture),
             card.Name,
             card.Tier.ToString(CultureInfo.InvariantCulture),
-            card.ImageUrl)));
+            card.ImageUrl,
+            card.Kind.ToString())));
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant()[..16];
     }
 
@@ -344,10 +361,29 @@ public sealed class BlizzardCatalogSyncService : IDisposable
         [property: JsonPropertyName("image")] string? Image,
         [property: JsonPropertyName("battlegrounds")] BlizzardBattlegroundInfo? Battlegrounds,
         int Tier = 0,
-        string? ImageUrl = null);
+        string? ImageUrl = null,
+        [property: JsonPropertyName("card_type_id")] int CardTypeId = 4,
+        [property: JsonPropertyName("cardTypeId")] int? CardTypeIdCamel = null,
+        CardKind Kind = CardKind.Minion);
 
     private sealed record BlizzardBattlegroundInfo(
         [property: JsonPropertyName("tier")] int Tier,
         [property: JsonPropertyName("hero")] bool Hero,
         [property: JsonPropertyName("image")] string? Image);
+
+    private static CardKind ResolveChinaKind(int cardTypeId) => cardTypeId switch
+    {
+        4 => CardKind.Minion,
+        42 => CardKind.Spell,
+        _ => CardKind.Unknown
+    };
+
+    private static CardKind ResolveGlobalKind(int cardTypeId) => cardTypeId switch
+    {
+        42 => CardKind.Spell,
+        4 or 0 => CardKind.Minion,
+        _ => CardKind.Unknown
+    };
+
+    private static int EffectiveCardTypeId(BlizzardCard card) => card.CardTypeIdCamel ?? card.CardTypeId;
 }

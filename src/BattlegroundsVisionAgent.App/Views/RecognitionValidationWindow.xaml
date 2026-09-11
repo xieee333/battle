@@ -101,7 +101,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="区域" Foreground="{StaticResource TextMutedBrush}" />
                                 <TextBlock Grid.Column="1" Text="槽位" Foreground="{StaticResource TextMutedBrush}" />
-                                <TextBlock Grid.Column="2" Text="识别结果" Foreground="{StaticResource TextMutedBrush}" />
+                                <TextBlock Grid.Column="2" Text="识别结果 / 卡图对照" Foreground="{StaticResource TextMutedBrush}" />
                                 <TextBlock Grid.Column="3" Text="置信度" Foreground="{StaticResource TextMutedBrush}" />
                                 <TextBlock Grid.Column="4" Text="识别是否正确" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
                                 <TextBlock Grid.Column="5" Text="位置是否正确" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
@@ -126,11 +126,38 @@
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="{Binding ZoneLabel}" />
                                                 <TextBlock Grid.Column="1" Text="{Binding SlotLabel}" Foreground="{StaticResource TextSecondaryBrush}" />
-                                                <StackPanel Grid.Column="2" Margin="0,0,7,0">
-                                                    <TextBlock Text="{Binding PredictedName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Text="{Binding PredictedCardId}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Text="{Binding KindAndGoldenText}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" />
-                                                </StackPanel>
+                                                <Grid Grid.Column="2" Margin="0,0,7,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="50" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Width="44" Height="60" Background="#18243A"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            CornerRadius="4" ToolTip="{Binding PredictedName}">
+                                                        <Grid>
+                                                            <Image Source="{Binding CardImage}" Stretch="Uniform" />
+                                                            <TextBlock Text="{Binding ReferenceImageStatus}" HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"
+                                                                       FontSize="9" TextAlignment="Center">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding CardImage}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Grid>
+                                                    </Border>
+                                                    <StackPanel Grid.Column="1" Margin="7,0,0,0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding PredictedName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding PredictedCardId}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding KindAndGoldenText}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" />
+                                                    </StackPanel>
+                                                </Grid>
                                                 <TextBlock Grid.Column="3" Text="{Binding ConfidenceText}" Foreground="{StaticResource AccentBrush}" />
                                                 <ComboBox Grid.Column="4" ItemsSource="{Binding RecognitionStatuses}" SelectedItem="{Binding RecognitionStatus, UpdateSourceTrigger=PropertyChanged}" Margin="3,0" />
                                                 <ComboBox Grid.Column="5" ItemsSource="{Binding PositionStatuses}" SelectedItem="{Binding PositionStatus, UpdateSourceTrigger=PropertyChanged}" Margin="3,0" />

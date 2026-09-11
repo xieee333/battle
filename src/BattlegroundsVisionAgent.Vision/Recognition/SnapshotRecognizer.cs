@@ -84,7 +84,9 @@ public sealed class SnapshotRecognizer(
             ? digitRecognizer.Recognize(frame, layout.ArmorBounds, "armor")
             : null;
         var cards = new List<RecognizedCard>();
-        foreach (var slot in layout.Slots)
+        var visibleSlots = layout.Slots.Where(slot =>
+            slot.Zone != CardZone.Discover || scene.GamePhase == GamePhase.Discover);
+        foreach (var slot in visibleSlots)
         {
             using var cardImage = Crop(frame, slot.Bounds);
             var match = cardMatcher is IZoneAwareCardMatcher zoneAwareMatcher
@@ -99,12 +101,15 @@ public sealed class SnapshotRecognizer(
 
         var confidence = new[] { layout.Confidence, gold.Confidence, tier.Confidence, scene.Confidence,
                 armor?.Confidence ?? 1 }
-            .Concat(cards.Where(card => card.Observation.IsOccupied).Select(card => card.Confidence))
+            .Concat(cards.Where(card => card.Observation.IsOccupied
+                    && !string.Equals(card.Observation.CardId, UnknownCardId, StringComparison.OrdinalIgnoreCase))
+                .Select(card => card.Confidence))
             .DefaultIfEmpty(0).Min();
-        var unknownBlockingUi = layout.HasUnknownBlockingUi || !gold.IsKnown || !tier.IsKnown || scene.GamePhase == GamePhase.Unknown
-            || cards.Any(card => card.Observation.CardId == UnknownCardId
-                && card.Observation.IsOccupied
-                && card.Observation.Kind != CardKind.Spell);
+        var unknownCard = cards.Any(card => card.Observation.CardId == UnknownCardId
+            && card.Observation.IsOccupied
+            && card.Observation.Kind != CardKind.Spell);
+        var unknownBlockingUi = layout.HasUnknownBlockingUi || !gold.IsKnown || !tier.IsKnown
+            || scene.GamePhase == GamePhase.Unknown;
         var snapshot = new GameSnapshot(layout.LayoutVersion, confidence, capturedAt, scene.GamePhase,
             gold.Value, tier.Value,
             cards.Where(card => card.Observation.CardZone == CardZone.Shop).Select(card => card.Observation).ToArray(),
@@ -112,7 +117,7 @@ public sealed class SnapshotRecognizer(
             cards.Where(card => card.Observation.CardZone == CardZone.Board && card.Observation.IsOccupied).Select(card => card.Observation).ToArray(),
             cards.Where(card => card.Observation.CardZone == CardZone.Discover).Select(card => card.Observation).ToArray(),
             layout.HandCapacity, layout.BoardCapacity, layout.HasPendingTripleReward, unknownBlockingUi,
-            armor?.Value);
+            armor?.Value, unknownCard);
         return new SnapshotRecognitionResult(snapshot, gold, tier, scene, cards, armor);
     }
 

@@ -1,9 +1,15 @@
 using Microsoft.Data.Sqlite;
 using System.Globalization;
+using BattlegroundsVisionAgent.Core.Domain;
 
 namespace BattlegroundsVisionAgent.Vision.Catalog;
 
-public sealed record CardCatalogEntry(string CardId, string NameZhCn, int Tier, string ImagePath);
+public sealed record CardCatalogEntry(
+    string CardId,
+    string NameZhCn,
+    int Tier,
+    string ImagePath,
+    CardKind Kind = CardKind.Minion);
 public sealed record CatalogMetadata(string Version, DateTimeOffset UpdatedAt);
 public sealed record CardCatalogSnapshot(CatalogMetadata? Metadata, IReadOnlyList<CardCatalogEntry> Entries);
 
@@ -24,11 +30,13 @@ public sealed class CardCatalog
         connection.Open();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            CREATE TABLE IF NOT EXISTS cards(card_id TEXT PRIMARY KEY, name_zh_cn TEXT NOT NULL, tier INTEGER NOT NULL, image_path TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS features(card_id TEXT NOT NULL, variant TEXT NOT NULL, phash TEXT NOT NULL, descriptor BLOB NOT NULL, descriptor_rows INTEGER NOT NULL, descriptor_columns INTEGER NOT NULL, keypoints BLOB NOT NULL, PRIMARY KEY(card_id, variant));
+            CREATE TABLE IF NOT EXISTS cards(card_id TEXT PRIMARY KEY, name_zh_cn TEXT NOT NULL, tier INTEGER NOT NULL, image_path TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'Minion');
+            CREATE TABLE IF NOT EXISTS features(card_id TEXT NOT NULL, variant TEXT NOT NULL, phash TEXT NOT NULL, descriptor BLOB NOT NULL, descriptor_rows INTEGER NOT NULL, descriptor_columns INTEGER NOT NULL, keypoints BLOB NOT NULL, kind TEXT NOT NULL DEFAULT 'Minion', PRIMARY KEY(card_id, variant));
             CREATE TABLE IF NOT EXISTS catalog_meta(version TEXT NOT NULL, updated_at TEXT NOT NULL);
             """;
         command.ExecuteNonQuery();
+        EnsureColumn(connection, "cards", "kind", "TEXT NOT NULL DEFAULT 'Minion'");
+        EnsureColumn(connection, "features", "kind", "TEXT NOT NULL DEFAULT 'Minion'");
     }
 
     public void SetMetadata(string version, DateTimeOffset updatedAt)
@@ -65,6 +73,10 @@ public sealed class CardCatalog
         if (!File.Exists(DatabasePath))
             return new CardCatalogSnapshot(null, []);
 
+        // Catalogs packaged before card kinds were introduced are migrated on
+        // first read, so offline recognition can use the new reader directly.
+        Initialize();
+
         CatalogAccessGate.Instance.EnterReadLock();
         try
         {
@@ -87,7 +99,7 @@ public sealed class CardCatalog
             }
 
             using var cardsCommand = connection.CreateCommand();
-            cardsCommand.CommandText = "SELECT card_id, name_zh_cn, tier, image_path FROM cards ORDER BY card_id";
+            cardsCommand.CommandText = "SELECT card_id, name_zh_cn, tier, image_path, kind FROM cards ORDER BY card_id";
             using var cards = cardsCommand.ExecuteReader();
             var entries = new List<CardCatalogEntry>();
             while (cards.Read())
@@ -96,7 +108,8 @@ public sealed class CardCatalog
                     cards.GetString(0),
                     cards.GetString(1),
                     cards.GetInt32(2),
-                    cards.GetString(3)));
+                    cards.GetString(3),
+                    ParseKind(cards.GetString(4))));
             }
 
             return new CardCatalogSnapshot(metadata, entries);
@@ -105,4 +118,25 @@ public sealed class CardCatalog
     }
 
     private SqliteConnection Open() => new($"Data Source={DatabasePath};Pooling=False");
+
+    private static void EnsureColumn(SqliteConnection connection, string table, string column, string definition)
+    {
+        using var check = connection.CreateCommand();
+        check.CommandText = $"PRAGMA table_info({table})";
+        using var reader = check.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+
+        using var alter = connection.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition}";
+        alter.ExecuteNonQuery();
+    }
+
+    internal static CardKind ParseKind(string? value) =>
+        Enum.TryParse<CardKind>(value, ignoreCase: true, out var kind)
+            ? kind
+            : CardKind.Minion;
 }

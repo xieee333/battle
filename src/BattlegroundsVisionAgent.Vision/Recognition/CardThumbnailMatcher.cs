@@ -41,9 +41,7 @@ public sealed class CardThumbnailMatcher : ICardMatcher, IZoneAwareCardMatcher, 
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(cardImage);
-        if (zone == CardZone.Hand || zone == CardZone.Discover)
-            return CardMatch.Unknown();
-        if (zone is not (CardZone.Shop or CardZone.Board))
+        if (zone is not (CardZone.Shop or CardZone.Hand or CardZone.Board or CardZone.Discover))
             return CardMatch.Unknown();
         if (cardImage.Empty())
             return CardMatch.Unknown();
@@ -105,7 +103,7 @@ public sealed class CardThumbnailMatcher : ICardMatcher, IZoneAwareCardMatcher, 
             return fallback.Kind == CardKind.Spell ? fallback : CardMatch.Unknown(best.Score);
         }
 
-        return new CardMatch(best.Feature.CardId, best.Feature.IsGolden, best.Score, CardKind.Minion);
+        return new CardMatch(best.Feature.CardId, best.Feature.IsGolden, best.Score, best.Feature.Kind);
     }
 
     private static CardMatch UnknownForZone(Mat cardImage, CardZone zone, double confidence = 0)

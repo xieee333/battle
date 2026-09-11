@@ -85,4 +85,31 @@ public sealed class DomainModelTests
         Assert.Equal(GamePhase.Shopping, loaded.GamePhase);
         Assert.Equal(snapshot.Shop[0].Bounds, loaded.Shop[0].Bounds);
     }
+
+    [Fact]
+    public void Snapshot_AllowsKnownCardActionWhenAnUnidentifiedCardIsUnrelated()
+    {
+        var unknownBuddy = new CardObservation("UNKNOWN", CardZone.Shop, 0, false,
+            new NormalizedRect(0, 0, 0.1, 0.1), 0.20, CardKind.Unknown);
+        var known = new CardObservation("CARD_A", CardZone.Shop, 1, false,
+            new NormalizedRect(0.1, 0, 0.1, 0.1), 0.95, CardKind.Minion);
+        var snapshot = new GameSnapshot(7, 0.95, DateTimeOffset.UnixEpoch, GamePhase.Shopping,
+            10, 2, [unknownBuddy, known], [], [], [], 10, 7, false, false, hasUnknownCard: true);
+
+        Assert.True(snapshot.IsActionable);
+        Assert.True(snapshot.CanPerform(new BuyAction(7, "CARD_A", 1)));
+        Assert.False(snapshot.CanPerform(new BuyAction(7, "UNKNOWN", 0)));
+    }
+
+    [Fact]
+    public void Snapshot_UnknownDiscoverOptionCannotBeSelected()
+    {
+        var unknown = new CardObservation("UNKNOWN", CardZone.Discover, 0, false,
+            new NormalizedRect(0, 0, 0.1, 0.1), 0.20, CardKind.Unknown);
+        var snapshot = new GameSnapshot(7, 0.95, DateTimeOffset.UnixEpoch, GamePhase.Discover,
+            10, 2, [], [], [], [unknown], 10, 7, false, false, hasUnknownCard: true);
+
+        Assert.True(snapshot.IsActionable);
+        Assert.False(snapshot.CanPerform(new ChooseDiscoverAction(7, "UNKNOWN", 0)));
+    }
 }

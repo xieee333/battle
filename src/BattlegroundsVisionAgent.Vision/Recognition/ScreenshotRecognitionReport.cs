@@ -169,6 +169,60 @@ public sealed record ScreenshotRecognitionReport(
             : $"未知（{digit?.Confidence ?? 0:P1}）";
 }
 
+/// <summary>
+/// A persisted batch of screenshot reports. It lets offline calibration inspect
+/// every relevant zone before any planner or input code is allowed to act.
+/// </summary>
+public sealed record ScreenshotRecognitionBatchReport(
+    string SourceManifest,
+    string SourceCommit,
+    DateTimeOffset GeneratedAt,
+    IReadOnlyList<ScreenshotRecognitionReport> Reports)
+{
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    public string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
+
+    public string ToText()
+    {
+        var lines = new List<string>
+        {
+            $"识别批次：{Reports.Count} 张",
+            $"来源：{SourceManifest} · 日志提交：{SourceCommit}",
+            $"质量：{FormatCounts(Reports.GroupBy(report => report.Quality).ToDictionary(group => group.Key, group => group.Count()))}",
+            $"场景：{FormatSceneCounts()}",
+            $"可行动：{Reports.Count(report => report.IsActionable)}/{Reports.Count}"
+        };
+
+        foreach (var (zone, label) in new[]
+        {
+            (CardZone.Shop, "商店"),
+            (CardZone.Hand, "手牌"),
+            (CardZone.Board, "战场"),
+            (CardZone.Discover, "发现")
+        })
+        {
+            var cards = Reports.SelectMany(report => report.ForZone(zone)).ToArray();
+            var known = cards.Count(card => card.Status == ScreenshotRecognitionStatus.Confirmed);
+            lines.Add($"{label}槽位：{cards.Length}，已确认名称：{known}，未知/待复核：{cards.Length - known}");
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private string FormatSceneCounts() => string.Join("、", Enum.GetValues<GamePhase>()
+        .Select(phase => $"{phase} {Reports.Count(report => report.Scene.GamePhase == phase)}"));
+
+    private static string FormatCounts(IReadOnlyDictionary<FrameQuality, int> counts) =>
+        string.Join("、", Enum.GetValues<FrameQuality>()
+            .Select(quality => $"{quality} {counts.GetValueOrDefault(quality)}"));
+}
+
 public static class ScreenshotRecognitionReportBuilder
 {
     private const double ConfirmedCardConfidence = 0.90;
@@ -186,6 +240,8 @@ public static class ScreenshotRecognitionReportBuilder
         ArgumentNullException.ThrowIfNull(catalog);
 
         var cards = result.Cards
+            .Where(card => card.Observation.IsOccupied
+                || card.Observation.CardZone is CardZone.Shop or CardZone.Discover)
             .OrderBy(card => card.Observation.CardZone)
             .ThenBy(card => card.SlotIndex)
             .Select(card =>

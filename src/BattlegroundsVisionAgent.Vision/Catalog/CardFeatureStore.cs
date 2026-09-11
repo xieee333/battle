@@ -1,5 +1,6 @@
 using OpenCvSharp;
 using System.Runtime.InteropServices;
+using BattlegroundsVisionAgent.Core.Domain;
 
 namespace BattlegroundsVisionAgent.Vision.Catalog;
 
@@ -8,7 +9,15 @@ internal static class CatalogAccessGate
     internal static readonly ReaderWriterLockSlim Instance = new();
 }
 
-public sealed record CardFeature(string CardId, bool IsGolden, ulong PerceptualHash, byte[] Descriptor, int DescriptorRows, int DescriptorColumns, Point2f[] Keypoints)
+public sealed record CardFeature(
+    string CardId,
+    bool IsGolden,
+    ulong PerceptualHash,
+    byte[] Descriptor,
+    int DescriptorRows,
+    int DescriptorColumns,
+    Point2f[] Keypoints,
+    CardKind Kind = CardKind.Minion)
 {
     public Mat ToDescriptorMat()
     {
@@ -33,14 +42,17 @@ public sealed class InMemoryFeatureStore : ICardFeatureStore
 
     public IReadOnlyList<CardFeature> GetAll() => _features;
 
-    public static InMemoryFeatureStore WithCard(string cardId, Mat image, bool isGolden = false) =>
-        new([CardFeatureFactory.Create(cardId, image, isGolden)]);
+    public static InMemoryFeatureStore WithCard(string cardId, Mat image, bool isGolden = false,
+        CardKind kind = CardKind.Minion) =>
+        new([CardFeatureFactory.Create(cardId, image, isGolden, kind)]);
 }
 
 public sealed class CardFeatureStore(string databasePath) : ICardFeatureStore
 {
     public IReadOnlyList<CardFeature> GetAll()
     {
+        if (File.Exists(databasePath))
+            new CardCatalog(databasePath).Initialize();
         CatalogAccessGate.Instance.EnterReadLock();
         try { return GetAllCore(); }
         finally { CatalogAccessGate.Instance.ExitReadLock(); }
@@ -53,7 +65,7 @@ public sealed class CardFeatureStore(string databasePath) : ICardFeatureStore
         using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={databasePath};Pooling=False");
         connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT card_id, variant, phash, descriptor, descriptor_rows, descriptor_columns, keypoints FROM features";
+        command.CommandText = "SELECT card_id, variant, phash, descriptor, descriptor_rows, descriptor_columns, keypoints, kind FROM features";
         using var reader = command.ExecuteReader();
         var features = new List<CardFeature>();
         while (reader.Read())
@@ -65,7 +77,8 @@ public sealed class CardFeatureStore(string databasePath) : ICardFeatureStore
                 (byte[])reader[3],
                 reader.GetInt32(4),
                 reader.GetInt32(5),
-                DecodeKeypoints((byte[])reader[6])));
+                DecodeKeypoints((byte[])reader[6]),
+                CardCatalog.ParseKind(reader.GetString(7))));
         }
         return features;
     }
@@ -81,10 +94,11 @@ public sealed class CardFeatureStore(string databasePath) : ICardFeatureStore
         connection.Open();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO features(card_id, variant, phash, descriptor, descriptor_rows, descriptor_columns, keypoints)
-            VALUES($cardId, $variant, $hash, $descriptor, $rows, $columns, $keypoints)
+            INSERT INTO features(card_id, variant, phash, descriptor, descriptor_rows, descriptor_columns, keypoints, kind)
+            VALUES($cardId, $variant, $hash, $descriptor, $rows, $columns, $keypoints, $kind)
             ON CONFLICT(card_id, variant) DO UPDATE SET phash=excluded.phash, descriptor=excluded.descriptor,
-              descriptor_rows=excluded.descriptor_rows, descriptor_columns=excluded.descriptor_columns, keypoints=excluded.keypoints;
+              descriptor_rows=excluded.descriptor_rows, descriptor_columns=excluded.descriptor_columns,
+              keypoints=excluded.keypoints, kind=excluded.kind;
             """;
         command.Parameters.AddWithValue("$cardId", feature.CardId);
         command.Parameters.AddWithValue("$variant", feature.IsGolden ? "golden" : "normal");
@@ -93,6 +107,7 @@ public sealed class CardFeatureStore(string databasePath) : ICardFeatureStore
         command.Parameters.AddWithValue("$rows", feature.DescriptorRows);
         command.Parameters.AddWithValue("$columns", feature.DescriptorColumns);
         command.Parameters.AddWithValue("$keypoints", EncodeKeypoints(feature.Keypoints));
+        command.Parameters.AddWithValue("$kind", feature.Kind.ToString());
         command.ExecuteNonQuery();
         }
         finally { CatalogAccessGate.Instance.ExitWriteLock(); }
@@ -117,7 +132,7 @@ public sealed class CardFeatureStore(string databasePath) : ICardFeatureStore
 
 public static class CardFeatureFactory
 {
-    public static CardFeature Create(string cardId, Mat image, bool isGolden)
+    public static CardFeature Create(string cardId, Mat image, bool isGolden, CardKind kind = CardKind.Minion)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cardId);
         ArgumentNullException.ThrowIfNull(image);
@@ -129,7 +144,8 @@ public static class CardFeatureFactory
             var bytes = new byte[checked(descriptor.Rows * descriptor.Cols)];
             if (bytes.Length > 0)
                 Marshal.Copy(descriptor.Data, bytes, 0, bytes.Length);
-            return new CardFeature(cardId, isGolden, hash, bytes, descriptor.Rows, descriptor.Cols, keypoints.Select(point => point.Pt).ToArray());
+            return new CardFeature(cardId, isGolden, hash, bytes, descriptor.Rows, descriptor.Cols,
+                keypoints.Select(point => point.Pt).ToArray(), kind);
         }
     }
 }

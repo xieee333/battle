@@ -1,8 +1,14 @@
 using System.Text.Json;
+using BattlegroundsVisionAgent.Core.Domain;
 
 namespace BattlegroundsVisionAgent.Vision.Catalog;
 
-public sealed record CatalogPackageCard(string CardId, string NameZhCn, int Tier, string ImagePath);
+public sealed record CatalogPackageCard(
+    string CardId,
+    string NameZhCn,
+    int Tier,
+    string ImagePath,
+    CardKind Kind = CardKind.Minion);
 
 public sealed record CatalogPackageManifest(
     string Version,
@@ -22,8 +28,9 @@ public sealed record CatalogPackageManifest(
         if (Cards.Any(card => string.IsNullOrWhiteSpace(card.CardId)
             || string.IsNullOrWhiteSpace(card.NameZhCn)
             || card.Tier < 0
+            || card.Kind is not (CardKind.Minion or CardKind.Spell)
             || string.IsNullOrWhiteSpace(card.ImagePath)))
-            throw new InvalidDataException("Every catalog card must contain a valid id, name, tier and image path.");
+            throw new InvalidDataException("Every catalog card must contain a valid id, name, tier, kind and image path.");
 
         if (Cards.Select(card => card.CardId).Distinct(StringComparer.Ordinal).Count() != Cards.Count)
             throw new InvalidDataException("Catalog card ids must be unique.");

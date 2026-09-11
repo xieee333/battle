@@ -60,10 +60,18 @@ public partial class RecognitionValidationWindow : System.Windows.Window
 
     private void Analyze_Click(object sender, RoutedEventArgs e)
     {
+        AnalyzeCurrentImage();
+    }
+
+    /// <summary>
+    /// Runs offline recognition for the currently loaded screenshot.
+    /// </summary>
+    public bool AnalyzeCurrentImage()
+    {
         if (_png is null)
         {
             SetStatus("请先导入或传入截图。");
-            return;
+            return false;
         }
 
         var profilePath = Path.Combine(AppContext.BaseDirectory, "data", "vision", "profile.json");
@@ -71,13 +79,13 @@ public partial class RecognitionValidationWindow : System.Windows.Window
         if (!File.Exists(profilePath))
         {
             SetStatus("尚未找到 profile.json。请先在‘截图预览’中框选商店、手牌、战场并生成购物阶段配置。");
-            return;
+            return false;
         }
 
         if (!File.Exists(catalogPath))
         {
             SetStatus("尚未找到本地卡库 catalog.db；请先点击主窗口的‘更新卡库’或‘同步国服卡库’。");
-            return;
+            return false;
         }
 
         try
@@ -88,11 +96,15 @@ public partial class RecognitionValidationWindow : System.Windows.Window
             _catalogSnapshot = new CardCatalog(catalogPath).ReadSnapshot();
             using var pipeline = VisionRecognitionPipeline.Load(profilePath, catalogPath);
             var result = pipeline.Recognizer.Recognize(screenshot, DateTimeOffset.Now);
-            var names = _catalogSnapshot.Entries
+            var catalog = _catalogSnapshot.Entries
                 .GroupBy(entry => entry.CardId, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First().NameZhCn, StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
             var compatibility = _sampleRepository.ValidateAgainstCatalog(_catalogSnapshot);
-            _viewModel.LoadResult(result, names, _imagePath);
+            _viewModel.LoadResult(
+                result,
+                catalog,
+                _imagePath,
+                Path.GetDirectoryName(catalogPath));
             _viewModel.SetCatalogStatus(
                 $"当前卡库：{_catalogSnapshot.Metadata?.Version ?? "未标注版本"} · {_catalogSnapshot.Entries.Count} 张",
                 compatibility.ToDisplayText());
@@ -100,10 +112,12 @@ public partial class RecognitionValidationWindow : System.Windows.Window
             AnalyzeButton.IsEnabled = true;
             RefreshRecommendationsButton.IsEnabled = true;
             SaveFeedbackButton.IsEnabled = true;
+            return true;
         }
         catch (Exception exception)
         {
             SetStatus($"离线识别失败：{exception.Message}");
+            return false;
         }
     }
 

@@ -23,7 +23,7 @@ public sealed class ChinaCatalogTests
             Assert.Equal(BlizzardCatalogSyncService.ChinaEndpoint, request.RequestUri!.AbsoluteUri);
             Assert.Equal(HttpMethod.Post, request.Method);
             Assert.Null(request.Headers.Authorization);
-            Assert.Contains("\"bg_card_type\":\"minion\"", await request.Content!.ReadAsStringAsync(token));
+            Assert.Contains("\"bg_card_type\":\"\"", await request.Content!.ReadAsStringAsync(token));
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(response, Encoding.UTF8, "application/json") };
         }
     }

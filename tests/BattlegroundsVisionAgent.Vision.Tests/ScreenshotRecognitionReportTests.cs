@@ -137,4 +137,26 @@ public sealed class ScreenshotRecognitionReportTests
         Assert.Contains("不会发送输入", text);
         Assert.Contains("判断依据", text);
     }
+
+    [Fact]
+    public void BatchReport_SummarizesAllRecognizedScreenshots()
+    {
+        var quality = new FrameQualityResult(
+            "sample.png",
+            FrameQuality.Good,
+            "ok",
+            new FrameQualityMetrics(1920, 1080, 100, 20, 0.1, 0.1, 0.05, 1));
+        var report = ScreenshotRecognitionReport.Empty(1920, 1080, quality, "sample.png");
+        var batch = new ScreenshotRecognitionBatchReport(
+            "manifest.json",
+            "commit",
+            DateTimeOffset.UnixEpoch,
+            [report]);
+
+        var text = batch.ToText();
+
+        Assert.Contains("识别批次：1 张", text);
+        Assert.Contains("Shopping", text);
+        Assert.Contains("sample.png", batch.ToJson());
+    }
 }

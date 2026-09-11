@@ -64,7 +64,7 @@ public sealed class ValidationSampleFeatureStore : ICardFeatureStore
             using var thumbnail = CardThumbnailPreprocessor.FromScreenSlot(image);
             if (thumbnail.Empty())
                 continue;
-            features.Add(CardFeatureFactory.Create(sample.CardId, thumbnail, sample.IsGolden));
+            features.Add(CardFeatureFactory.Create(sample.CardId, thumbnail, sample.IsGolden, entry.Kind));
         }
         return features;
     }

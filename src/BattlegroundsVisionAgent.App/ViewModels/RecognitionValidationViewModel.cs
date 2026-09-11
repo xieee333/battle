@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using BattlegroundsVisionAgent.Core.Domain;
+using BattlegroundsVisionAgent.Vision.Catalog;
 using BattlegroundsVisionAgent.Vision.Recognition;
 using BattlegroundsVisionAgent.Vision.Validation;
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.Windows.Media.Imaging;
 
 namespace BattlegroundsVisionAgent.App.ViewModels;
 
@@ -40,11 +43,12 @@ public sealed class RecognitionValidationViewModel : ObservableObject
 
     public void LoadResult(
         SnapshotRecognitionResult result,
-        IReadOnlyDictionary<string, string> cardNames,
-        string imagePath)
+        IReadOnlyDictionary<string, CardCatalogEntry> catalog,
+        string imagePath,
+        string? catalogDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(result);
-        ArgumentNullException.ThrowIfNull(cardNames);
+        ArgumentNullException.ThrowIfNull(catalog);
 
         Result = result;
         ImagePath = string.IsNullOrWhiteSpace(imagePath) ? "当前内存截图" : imagePath;
@@ -58,10 +62,11 @@ public sealed class RecognitionValidationViewModel : ObservableObject
             var id = card.Observation.CardId;
             var predictedName = id == "UNKNOWN"
                 ? "未识别"
-                : cardNames.TryGetValue(id, out var name) && !string.IsNullOrWhiteSpace(name)
-                    ? name
+                : catalog.TryGetValue(id, out var entry) && !string.IsNullOrWhiteSpace(entry.NameZhCn)
+                    ? entry.NameZhCn
                     : id;
-            Cards.Add(new RecognitionValidationRowViewModel(card, predictedName));
+            catalog.TryGetValue(id, out var cardEntry);
+            Cards.Add(new RecognitionValidationRowViewModel(card, predictedName, cardEntry, catalogDirectory));
         }
 
         SummaryText = $"场景：{PhaseLabel(result.Scene.GamePhase)}（{result.Scene.Confidence:P0}）  ·  " +
@@ -141,6 +146,67 @@ public sealed class RecognitionValidationViewModel : ObservableObject
     };
 }
 
+/// <summary>
+/// Resolves and loads the catalog thumbnail used as a visual reference in the
+/// offline recognition report. Catalog paths are treated as untrusted relative
+/// paths and are never allowed to escape the catalog directory.
+/// </summary>
+public static class CardReferenceImageLoader
+{
+    public static string? ResolvePath(CardCatalogEntry? entry, string? catalogDirectory)
+    {
+        if (entry is null || string.IsNullOrWhiteSpace(catalogDirectory) || string.IsNullOrWhiteSpace(entry.ImagePath))
+            return null;
+
+        try
+        {
+            var root = Path.GetFullPath(catalogDirectory);
+            var candidate = Path.GetFullPath(Path.Combine(root,
+                entry.ImagePath.Replace('/', Path.DirectorySeparatorChar)));
+            var relative = Path.GetRelativePath(root, candidate);
+            if (Path.IsPathRooted(relative)
+                || relative.Equals("..", StringComparison.Ordinal)
+                || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                return null;
+
+            return File.Exists(candidate) ? candidate : null;
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    public static BitmapImage? Load(CardCatalogEntry? entry, string? catalogDirectory, int decodePixelWidth = 72)
+    {
+        var path = ResolvePath(entry, catalogDirectory);
+        if (path is null)
+            return null;
+
+        try
+        {
+            using var stream = File.OpenRead(path);
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.DecodePixelWidth = Math.Max(1, decodePixelWidth);
+            bitmap.StreamSource = stream;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch (Exception exception) when (exception is IOException
+            or UnauthorizedAccessException
+            or NotSupportedException
+            or ArgumentException
+            or System.IO.FileFormatException)
+        {
+            // A missing or corrupt thumbnail must not prevent report viewing.
+            return null;
+        }
+    }
+}
+
 public sealed class RecognitionValidationRowViewModel : ObservableObject
 {
     private string _recognitionStatus = "未确认";
@@ -148,7 +214,11 @@ public sealed class RecognitionValidationRowViewModel : ObservableObject
     private string _expectedText = string.Empty;
     private string _note = string.Empty;
 
-    public RecognitionValidationRowViewModel(RecognizedCard card, string predictedName)
+    public RecognitionValidationRowViewModel(
+        RecognizedCard card,
+        string predictedName,
+        CardCatalogEntry? catalogEntry = null,
+        string? catalogDirectory = null)
     {
         Observation = card.Observation;
         Bounds = card.Bounds;
@@ -162,6 +232,8 @@ public sealed class RecognitionValidationRowViewModel : ObservableObject
         KindAndGoldenText = $"{KindLabel} · {GoldenText}";
         IsUnknown = card.Observation.CardId == "UNKNOWN";
         IsLowConfidence = card.Confidence < 0.80;
+        ReferenceImagePath = CardReferenceImageLoader.ResolvePath(catalogEntry, catalogDirectory);
+        CardImage = CardReferenceImageLoader.Load(catalogEntry, catalogDirectory);
     }
 
     public IReadOnlyList<string> RecognitionStatuses => RecognitionValidationViewModel.RecognitionStatuses;
@@ -178,6 +250,9 @@ public sealed class RecognitionValidationRowViewModel : ObservableObject
     public string GoldenText { get; }
     public bool IsUnknown { get; }
     public bool IsLowConfidence { get; }
+    public BitmapImage? CardImage { get; }
+    public string ReferenceImageStatus => CardImage is null ? "无卡图" : "卡库卡图";
+    public string? ReferenceImagePath { get; }
 
     public string RecognitionStatus
     {

@@ -8,7 +8,7 @@ namespace BattlegroundsVisionAgent.Vision.Tests;
 public sealed class SnapshotRecognizerTests
 {
     [Fact]
-    public void Recognize_PreservesUnknownHandSlotAndBlocksActions()
+    public void Recognize_PreservesUnknownHandSlotWithoutBlockingUnrelatedActions()
     {
         using var frame = new Mat(100, 100, MatType.CV_8UC1, Scalar.All(40));
         var bounds = new NormalizedRect(0, 0, 1, 1);
@@ -21,7 +21,9 @@ public sealed class SnapshotRecognizerTests
 
         Assert.Single(snapshot.Hand);
         Assert.Equal("UNKNOWN", snapshot.Hand[0].CardId);
-        Assert.False(snapshot.IsActionable);
+        Assert.True(snapshot.HasUnknownCard);
+        Assert.True(snapshot.IsActionable);
+        Assert.False(snapshot.CanPerform(new PlayAction(snapshot.LayoutVersion, "UNKNOWN", 0, null)));
     }
 
     [Fact]
@@ -50,8 +52,34 @@ public sealed class SnapshotRecognizerTests
         var snapshot = recognizer.Recognize(frame, DateTimeOffset.UnixEpoch).Snapshot;
 
         Assert.True(snapshot.IsActionable);
+        Assert.False(snapshot.HasUnknownCard);
         Assert.Equal(CardKind.Spell, Assert.Single(snapshot.Shop).Kind);
         Assert.Equal("UNKNOWN", snapshot.Shop[0].CardId);
+    }
+
+    [Fact]
+    public void Recognize_DoesNotTreatHiddenDiscoverSlotsAsCardsDuringShopping()
+    {
+        using var frame = new Mat(100, 100, MatType.CV_8UC1, Scalar.All(40));
+        var bounds = new NormalizedRect(0, 0, 1, 1);
+        var recognizer = new SnapshotRecognizer(
+            new StubLayoutRecognizer(LayoutRecognition.Succeeded(
+                1,
+                1,
+                [new CardSlot(CardZone.Shop, 0, bounds), new CardSlot(CardZone.Discover, 0, bounds)],
+                bounds,
+                bounds,
+                1,
+                7)),
+            new StubCardMatcher(new CardMatch("CARD_A", false, 0.97)),
+            new StubDigitRecognizer(1, 1, 1),
+            new StubSceneRecognizer(new SceneRecognition(GamePhase.Shopping, 1)));
+
+        var result = recognizer.Recognize(frame, DateTimeOffset.UnixEpoch);
+
+        Assert.Single(result.Cards);
+        Assert.Equal(CardZone.Shop, result.Cards[0].Observation.CardZone);
+        Assert.Empty(result.Snapshot.DiscoverOptions);
     }
     [Fact]
     public void TemplateRecognizers_ReturnKnownValuesForExactSyntheticTemplates()

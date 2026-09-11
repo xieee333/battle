@@ -54,6 +54,13 @@ public sealed class AutomationPlanner
             return new StopAction(snapshot.LayoutVersion, reason);
         }
 
+        if (snapshot.DiscoverOptions.Any(card =>
+                string.IsNullOrWhiteSpace(card.CardId)
+                || string.Equals(card.CardId, "UNKNOWN", StringComparison.OrdinalIgnoreCase)))
+        {
+            return new StopAction(snapshot.LayoutVersion, "discover-data-unknown");
+        }
+
         if (snapshot.DiscoverOptions.Count > 0)
         {
             return PlanDiscover(snapshot, settings);

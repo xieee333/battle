@@ -168,6 +168,7 @@ public partial class CapturePreviewWindow : System.Windows.Window
 
         var window = new RecognitionValidationWindow { Owner = this };
         window.LoadImage(_png, "当前截图");
+        window.AnalyzeCurrentImage();
         window.ShowDialog();
     }
 

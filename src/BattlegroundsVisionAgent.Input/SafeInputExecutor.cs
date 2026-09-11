@@ -53,14 +53,14 @@ public sealed class SafeInputExecutor : IInputExecutor, IAsyncDisposable
             return new InputExecutionResult(false, InputExecutionReason.WrongGamePhase);
         }
 
-        if (!snapshot.IsActionable)
-        {
-            return new InputExecutionResult(false, InputExecutionReason.SnapshotNotActionable);
-        }
-
         if (action.LayoutVersion != snapshot.LayoutVersion)
         {
             return new InputExecutionResult(false, InputExecutionReason.LayoutVersionMismatch);
+        }
+
+        if (!snapshot.CanPerform(action))
+        {
+            return new InputExecutionResult(false, InputExecutionReason.SnapshotNotActionable);
         }
 
         var resolution = _bindingResolver.Resolve(action, snapshot);

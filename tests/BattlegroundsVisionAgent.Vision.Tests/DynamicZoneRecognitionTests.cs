@@ -40,4 +40,58 @@ public sealed class DynamicZoneRecognitionTests
         Assert.False(detector.Detect(empty, CardZone.Board).IsOccupied);
         Assert.True(detector.Detect(occupied, CardZone.Board).IsOccupied);
     }
+
+    [Fact]
+    public void HandSlotDetector_RecoversOverlappedNineCardHand()
+    {
+        var root = FindRepositoryRoot();
+        var profilePath = Path.Combine(root, "data", "vision", "profile.json");
+        var screenshotPath = Path.Combine(root, "logs", "live-frames", "20260907-214645-774-Shopping.png");
+        Assert.True(File.Exists(profilePath), profilePath);
+        Assert.True(File.Exists(screenshotPath), screenshotPath);
+
+        using var assets = VisionProfileAssets.Load(profilePath);
+        using var frame = Cv2.ImRead(screenshotPath, ImreadModes.Color);
+        var slots = CardZoneSlotDetector.DetectHand(frame, assets.Layout.Regions.Hand, assets.Layout.HandSlots);
+        Assert.Equal(9, slots.Count);
+    }
+
+    [Fact]
+    public void HandSlotDetector_DoesNotExpandVisibleFourCardHandToNineCandidates()
+    {
+        var root = FindRepositoryRoot();
+        var profilePath = Path.Combine(root, "data", "vision", "profile.json");
+        var screenshotPath = Path.Combine(root, "logs", "live-frames", "20260907-193900-058-Shopping.png");
+        Assert.True(File.Exists(profilePath), profilePath);
+        Assert.True(File.Exists(screenshotPath), screenshotPath);
+
+        using var assets = VisionProfileAssets.Load(profilePath);
+        using var frame = Cv2.ImRead(screenshotPath, ImreadModes.Color);
+        var slots = CardZoneSlotDetector.DetectHand(frame, assets.Layout.Regions.Hand, assets.Layout.HandSlots);
+        Assert.Equal(4, slots.Count);
+    }
+
+    [Fact]
+    public void HandSlotDetector_DoesNotTreatFullyExposedFourCardFanAsFullHand()
+    {
+        var root = FindRepositoryRoot();
+        var profilePath = Path.Combine(root, "data", "vision", "profile.json");
+        var screenshotPath = Path.Combine(root, "logs", "live-frames", "20260907-214047-733-Shopping.png");
+        Assert.True(File.Exists(profilePath), profilePath);
+        Assert.True(File.Exists(screenshotPath), screenshotPath);
+
+        using var assets = VisionProfileAssets.Load(profilePath);
+        using var frame = Cv2.ImRead(screenshotPath, ImreadModes.Color);
+        var slots = CardZoneSlotDetector.DetectHand(frame, assets.Layout.Regions.Hand, assets.Layout.HandSlots);
+        Assert.Equal(4, slots.Count);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "BattlegroundsVisionAgent.sln")))
+            directory = directory.Parent;
+        return directory?.FullName ?? throw new DirectoryNotFoundException("Repository root was not found.");
+    }
+
 }

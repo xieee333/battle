@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using BattlegroundsVisionAgent.Core.Domain;
 using BattlegroundsVisionAgent.Vision.Catalog;
 using OpenCvSharp;
 
@@ -60,6 +61,30 @@ public sealed class BlizzardCatalogSyncServiceTests
         }
     }
 
+    [Fact]
+    public async Task SyncChinaAsync_IncludesTieredMinionsAndSpellsAndPersistsTheirKinds()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"blizzard-china-sync-{Guid.NewGuid():N}");
+        var imageBytes = CreateImageBytes();
+        using var httpClient = new HttpClient(new ChinaCatalogHandler(imageBytes));
+        using var service = new BlizzardCatalogSyncService(httpClient);
+        try
+        {
+            var result = await service.SyncChinaAsync(Path.Combine(root, "catalog"));
+            var snapshot = new CardCatalog(Path.Combine(root, "catalog", "catalog.db")).ReadSnapshot();
+
+            Assert.True(result.Applied);
+            Assert.Equal(["1001", "1002"], snapshot.Entries.Select(card => card.CardId));
+            Assert.Equal(CardKind.Minion, snapshot.Entries[0].Kind);
+            Assert.Equal(CardKind.Spell, snapshot.Entries[1].Kind);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static byte[] CreateImageBytes()
     {
         using var image = new Mat(48, 48, MatType.CV_8UC1);
@@ -112,6 +137,59 @@ public sealed class BlizzardCatalogSyncServiceTests
             }
 
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+
+        private static HttpResponseMessage JsonResponse(object value) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(value), System.Text.Encoding.UTF8, "application/json")
+        };
+    }
+
+    private sealed class ChinaCatalogHandler(byte[] imageBytes) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (request.Method == HttpMethod.Post && request.RequestUri?.AbsoluteUri == BlizzardCatalogSyncService.ChinaEndpoint)
+            {
+                var body = await request.Content!.ReadAsStringAsync(cancellationToken);
+                Assert.Contains("\"bg_card_type\":\"\"", body);
+                var payload = new
+                {
+                    code = 0,
+                    data = new
+                    {
+                        total = 2,
+                        list = new[]
+                        {
+                            new
+                            {
+                                id = 1001,
+                                name = "测试随从",
+                                card_type_id = 4,
+                                battlegrounds = new { tier = 2, hero = false, image = "https://cdn.example/minion.png" }
+                            },
+                            new
+                            {
+                                id = 1002,
+                                name = "测试法术",
+                                card_type_id = 42,
+                                battlegrounds = new { tier = 3, hero = false, image = "https://cdn.example/spell.png" }
+                            }
+                        }
+                    }
+                };
+                return JsonResponse(payload);
+            }
+
+            if (request.Method == HttpMethod.Get && request.RequestUri?.Host == "cdn.example")
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(imageBytes)
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
         }
 
         private static HttpResponseMessage JsonResponse(object value) => new(HttpStatusCode.OK)

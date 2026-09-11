@@ -69,7 +69,7 @@ public sealed class CardMatcher : ICardMatcher
                     continue;
                 var score = Verify(queryHash, queryDescriptor, queryPoints, candidate, descriptor);
                 if (score > best.Confidence)
-                    best = new CardMatch(candidate.CardId, candidate.IsGolden, score, CardKind.Minion);
+                    best = new CardMatch(candidate.CardId, candidate.IsGolden, score, candidate.Kind);
             }
             return best.Confidence >= _minimumConfidence ? best : CardMatch.Unknown(best.Confidence);
         }

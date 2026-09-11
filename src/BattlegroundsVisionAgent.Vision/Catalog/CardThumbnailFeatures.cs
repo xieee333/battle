@@ -78,7 +78,7 @@ public sealed class CardThumbnailFeatureStore(string databasePath) : ICardFeatur
             using var thumbnail = CardThumbnailPreprocessor.FromCatalogCard(image);
             if (thumbnail.Empty())
                 continue;
-            features.Add(CardFeatureFactory.Create(entry.CardId, thumbnail, isGolden: false));
+            features.Add(CardFeatureFactory.Create(entry.CardId, thumbnail, isGolden: false, entry.Kind));
         }
 
         return features;

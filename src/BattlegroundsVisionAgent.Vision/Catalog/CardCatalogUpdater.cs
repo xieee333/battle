@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Globalization;
 using Microsoft.Data.Sqlite;
 using OpenCvSharp;
+using BattlegroundsVisionAgent.Core.Domain;
 
 namespace BattlegroundsVisionAgent.Vision.Catalog;
 
@@ -215,13 +216,14 @@ public sealed class CardCatalogUpdater
         using var connection = new SqliteConnection($"Data Source={Path.Combine(stagingDirectory, "catalog.db")};Pooling=False");
         connection.Open();
         using var cardsCommand = connection.CreateCommand();
-        cardsCommand.CommandText = "SELECT card_id, name_zh_cn, tier, image_path FROM cards";
+        cardsCommand.CommandText = "SELECT card_id, name_zh_cn, tier, image_path, kind FROM cards";
         using var reader = cardsCommand.ExecuteReader();
         var actualCards = new List<CatalogPackageCard>();
         while (reader.Read())
         {
             actualCards.Add(new CatalogPackageCard(
-                reader.GetString(0), reader.GetString(1), reader.GetInt32(2), reader.GetString(3)));
+                reader.GetString(0), reader.GetString(1), reader.GetInt32(2), reader.GetString(3),
+                CardCatalog.ParseKind(reader.GetString(4))));
         }
 
         var expectedCards = manifest.Cards
@@ -255,7 +257,7 @@ public sealed class CardCatalogUpdater
             using var image = Cv2.ImRead(imagePath, ImreadModes.Grayscale);
             if (image.Empty())
                 throw new InvalidDataException($"Card image cannot be decoded: {card.ImagePath}");
-            store.Upsert(CardFeatureFactory.Create(card.CardId, image, isGolden: false));
+            store.Upsert(CardFeatureFactory.Create(card.CardId, image, isGolden: false, card.Kind));
         }
     }
 

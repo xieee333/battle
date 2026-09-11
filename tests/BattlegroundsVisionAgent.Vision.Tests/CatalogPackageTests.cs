@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text.Json;
+using BattlegroundsVisionAgent.Core.Domain;
 using BattlegroundsVisionAgent.Vision.Catalog;
 using Microsoft.Data.Sqlite;
 using OpenCvSharp;
@@ -8,6 +9,40 @@ namespace BattlegroundsVisionAgent.Vision.Tests;
 
 public sealed class CatalogPackageTests
 {
+    [Fact]
+    public void CardCatalog_ReadSnapshot_MigratesLegacyDatabaseWithoutKindColumn()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"catalog-legacy-{Guid.NewGuid():N}");
+        var database = Path.Combine(root, "catalog.db");
+        try
+        {
+            Directory.CreateDirectory(root);
+            using (var connection = new SqliteConnection($"Data Source={database};Pooling=False"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = "CREATE TABLE cards(card_id TEXT PRIMARY KEY, name_zh_cn TEXT NOT NULL, tier INTEGER NOT NULL, image_path TEXT NOT NULL);"
+                    + "CREATE TABLE features(card_id TEXT NOT NULL, variant TEXT NOT NULL, phash TEXT NOT NULL, descriptor BLOB NOT NULL, descriptor_rows INTEGER NOT NULL, descriptor_columns INTEGER NOT NULL, keypoints BLOB NOT NULL, PRIMARY KEY(card_id, variant));"
+                    + "CREATE TABLE catalog_meta(version TEXT NOT NULL, updated_at TEXT NOT NULL);"
+                    + "INSERT INTO cards VALUES('CARD_A', '旧版随从', 1, 'cards/a.png');";
+                command.ExecuteNonQuery();
+            }
+
+            var entry = Assert.Single(new CardCatalog(database).ReadSnapshot().Entries);
+
+            Assert.Equal(CardKind.Minion, entry.Kind);
+            using var verify = new SqliteConnection($"Data Source={database};Pooling=False");
+            verify.Open();
+            using var column = verify.CreateCommand();
+            column.CommandText = "SELECT COUNT(*) FROM pragma_table_info('cards') WHERE name='kind'";
+            Assert.Equal(1L, column.ExecuteScalar());
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public void CardCatalog_ReadsVersionAndEntriesFromTheActiveDatabase()
     {

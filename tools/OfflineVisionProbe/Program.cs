@@ -68,6 +68,9 @@ if (string.Equals(args[0], "--build-training-index", StringComparison.OrdinalIgn
 if (string.Equals(args[0], "--recognize-screenshot", StringComparison.OrdinalIgnoreCase))
     return RecognizeScreenshot(args);
 
+if (string.Equals(args[0], "--recognize-manifest", StringComparison.OrdinalIgnoreCase))
+    return RecognizeManifest(args);
+
 if (string.Equals(args[0], "--crop", StringComparison.OrdinalIgnoreCase))
 {
     if (args.Length != 7 || !int.TryParse(args[2], out var x) || !int.TryParse(args[3], out var y)
@@ -489,6 +492,7 @@ static void PrintUsage()
     Console.WriteLine("  OfflineVisionProbe --validate-manifest <manifestPath> [--repo-root <path>]");
     Console.WriteLine("  OfflineVisionProbe --build-training-index <qualityManifest> --output <indexPath> [--repo-root <path>] [--catalog <catalog.db>] [--validation-samples <directory>] [--max-per-scene <n>]");
     Console.WriteLine("  OfflineVisionProbe --recognize-screenshot <image> [--profile <profile.json>] [--catalog <catalog.db>] [--json <result.json>]");
+    Console.WriteLine("  OfflineVisionProbe --recognize-manifest <qualityManifest> --output <batch.json> [--repo-root <path>] [--profile <profile.json>] [--catalog <catalog.db>]");
 }
 
 static int RecognizeScreenshot(string[] arguments)
@@ -671,6 +675,111 @@ static int BuildTrainingIndex(string[] arguments)
         Console.Error.WriteLine($"训练索引生成失败：{exception.Message}");
         return 1;
     }
+}
+
+static int RecognizeManifest(string[] arguments)
+{
+    if (arguments.Length < 4)
+    {
+        Console.Error.WriteLine("Usage: OfflineVisionProbe --recognize-manifest <qualityManifest> --output <batch.json> [--repo-root <path>] [--profile <profile.json>] [--catalog <catalog.db>]");
+        return 2;
+    }
+
+    string? outputPath = null;
+    string? repositoryRoot = null;
+    string? profilePath = null;
+    string? catalogPath = null;
+    for (var index = 2; index < arguments.Length; index++)
+    {
+        if (index + 1 >= arguments.Length)
+        {
+            Console.Error.WriteLine("批量识别参数缺少值。");
+            return 2;
+        }
+
+        var option = arguments[index].ToLowerInvariant();
+        var value = arguments[++index];
+        switch (option)
+        {
+            case "--output":
+                outputPath = Path.GetFullPath(value);
+                break;
+            case "--repo-root":
+                repositoryRoot = Path.GetFullPath(value);
+                break;
+            case "--profile":
+                profilePath = Path.GetFullPath(value);
+                break;
+            case "--catalog":
+                catalogPath = Path.GetFullPath(value);
+                break;
+            default:
+                Console.Error.WriteLine($"未知批量识别参数：{arguments[index - 1]}");
+                return 2;
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(outputPath))
+    {
+        Console.Error.WriteLine("批量识别必须指定 --output。");
+        return 2;
+    }
+
+    try
+    {
+        repositoryRoot ??= Directory.GetCurrentDirectory();
+        profilePath ??= Path.Combine(repositoryRoot, "data", "vision", "profile.json");
+        catalogPath ??= Path.Combine(repositoryRoot, "data", "catalog", "catalog.db");
+        var manifestPath = Path.GetFullPath(arguments[1]);
+        var manifest = LogCurationManifest.Load(manifestPath);
+        var fullRoot = Path.GetFullPath(repositoryRoot);
+        var samples = manifest.Samples
+            .Where(sample => sample.Include
+                && sample.Quality == FrameQuality.Good
+                && IsFullFramePath(sample.Path))
+            .OrderBy(sample => sample.Path, StringComparer.Ordinal)
+            .ToArray();
+
+        using var service = ScreenshotRecognitionService.Load(profilePath, catalogPath);
+        var reports = new List<ScreenshotRecognitionReport>(samples.Length);
+        foreach (var sample in samples)
+        {
+            var imagePath = ResolveContainedRepositoryFile(fullRoot, sample.Path);
+            reports.Add(service.RecognizeFile(imagePath));
+        }
+
+        var batch = new ScreenshotRecognitionBatchReport(
+            manifestPath,
+            manifest.SourceCommit,
+            DateTimeOffset.UtcNow,
+            reports);
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+        File.WriteAllText(outputPath, batch.ToJson());
+        Console.WriteLine(batch.ToText());
+        Console.WriteLine($"逐图报告已保存：{outputPath}");
+        return reports.Count == 0 ? 1 : 0;
+    }
+    catch (Exception exception) when (exception is IOException or InvalidDataException or DirectoryNotFoundException or ArgumentException)
+    {
+        Console.Error.WriteLine($"批量截图识别失败：{exception.Message}");
+        return 1;
+    }
+}
+
+static bool IsFullFramePath(string path) =>
+    path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries)
+        .Any(segment => string.Equals(segment, "live-frames", StringComparison.OrdinalIgnoreCase));
+
+static string ResolveContainedRepositoryFile(string repositoryRoot, string relativePath)
+{
+    if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath))
+        throw new InvalidDataException($"日志路径必须是相对路径：{relativePath}");
+    var root = repositoryRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+        + Path.DirectorySeparatorChar;
+    var candidate = Path.GetFullPath(Path.Combine(repositoryRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+    if (!candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(candidate))
+        throw new FileNotFoundException($"日志截图不存在：{relativePath}", candidate);
+    return candidate;
 }
 
 return 0;
