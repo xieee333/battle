@@ -14,6 +14,8 @@
                 <Button x:Name="OpenButton" Content="导入截图" Click="Open_Click"/>
                 <Button x:Name="AnalyzeButton" Content="离线识别当前截图" Click="Analyze_Click" IsEnabled="False"
                         ToolTip="不操作游戏，直接用当前 PNG 运行一次视觉识别"/>
+                <Button x:Name="ValidationButton" Content="详细识别校验" Click="Validation_Click" IsEnabled="False"
+                        ToolTip="显示金币、本数、场景、商店、手牌、战场和每个卡槽的校验结果" />
             </StackPanel>
             <WrapPanel x:Name="CalibrationControls" IsEnabled="False" Margin="0,10,0,0">
                 <TextBlock Text="框选区域：" Margin="0,0,8,0"/>

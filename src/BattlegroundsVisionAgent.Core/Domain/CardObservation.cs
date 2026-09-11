@@ -59,4 +59,5 @@ public sealed record CardObservation(
     bool IsGolden,
     NormalizedRect Bounds,
     double Confidence,
-    CardKind Kind = CardKind.Unknown);
+    CardKind Kind = CardKind.Unknown,
+    bool IsOccupied = true);

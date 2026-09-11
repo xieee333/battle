@@ -16,7 +16,8 @@ public sealed record LayoutTemplateProfile(
     int HandCapacity,
     int BoardCapacity,
     NormalizedRect ArmorBounds = default,
-    NormalizedRect GoldCoinBounds = default)
+    NormalizedRect GoldCoinBounds = default,
+    NormalizedRect GoldResourceBounds = default)
 {
     public void Validate()
     {
@@ -38,6 +39,8 @@ public sealed record LayoutTemplateProfile(
             throw new InvalidDataException("Discover slots must remain within the frame.");
         if (GoldCoinBounds.Width > 0 && !IsInside(GoldCoinBounds, new NormalizedRect(0, 0, 1, 1)))
             throw new InvalidDataException("Gold coin bounds must remain within the frame.");
+        if (GoldResourceBounds.Width > 0 && !IsInside(GoldResourceBounds, new NormalizedRect(0, 0, 1, 1)))
+            throw new InvalidDataException("Gold resource bounds must remain within the frame.");
     }
 
     private static void ValidateSlots(NormalizedRect region, IReadOnlyList<NormalizedRect> slots, string zone)
@@ -124,10 +127,11 @@ public sealed class TemplateLayoutRecognizer : ILayoutRecognizer, IDisposable
             return LayoutRecognition.Failed();
 
         var shopSlots = ShopSlotDetector.Detect(frame, _profile.Regions.Shop, _profile.ShopSlots);
+        var handSlots = CardZoneSlotDetector.DetectHand(frame, _profile.Regions.Hand, _profile.HandSlots);
         var slots = new List<CardSlot>(
-            shopSlots.Count + _profile.HandSlots.Count + _profile.BoardSlots.Count + _profile.DiscoverSlots.Count);
+            shopSlots.Count + handSlots.Count + _profile.BoardSlots.Count + _profile.DiscoverSlots.Count);
         AddSlots(slots, CardZone.Shop, shopSlots);
-        AddSlots(slots, CardZone.Hand, _profile.HandSlots);
+        AddSlots(slots, CardZone.Hand, handSlots);
         AddSlots(slots, CardZone.Board, _profile.BoardSlots);
         AddSlots(slots, CardZone.Discover, _profile.DiscoverSlots);
         var confidence = matches
@@ -147,7 +151,8 @@ public sealed class TemplateLayoutRecognizer : ILayoutRecognizer, IDisposable
             hasPendingTripleReward: false,
             hasUnknownBlockingUi: confidence < _minimumAnchorConfidence,
             armorBounds: _profile.ArmorBounds,
-            goldCoinBounds: _profile.GoldCoinBounds);
+            goldCoinBounds: _profile.GoldCoinBounds,
+            goldResourceBounds: _profile.GoldResourceBounds);
     }
 
     /// <summary>
@@ -165,10 +170,13 @@ public sealed class TemplateLayoutRecognizer : ILayoutRecognizer, IDisposable
         var shopSlots = frame is not null && !frame.Empty()
             ? ShopSlotDetector.Detect(frame, _profile.Regions.Shop, _profile.ShopSlots)
             : _profile.ShopSlots;
+        var handSlots = frame is not null && !frame.Empty()
+            ? CardZoneSlotDetector.DetectHand(frame, _profile.Regions.Hand, _profile.HandSlots)
+            : _profile.HandSlots;
         var slots = new List<CardSlot>(
-            shopSlots.Count + _profile.HandSlots.Count + _profile.BoardSlots.Count + _profile.DiscoverSlots.Count);
+            shopSlots.Count + handSlots.Count + _profile.BoardSlots.Count + _profile.DiscoverSlots.Count);
         AddSlots(slots, CardZone.Shop, shopSlots);
-        AddSlots(slots, CardZone.Hand, _profile.HandSlots);
+        AddSlots(slots, CardZone.Hand, handSlots);
         AddSlots(slots, CardZone.Board, _profile.BoardSlots);
         AddSlots(slots, CardZone.Discover, _profile.DiscoverSlots);
         return LayoutRecognition.Succeeded(
@@ -182,7 +190,8 @@ public sealed class TemplateLayoutRecognizer : ILayoutRecognizer, IDisposable
             hasPendingTripleReward: false,
             hasUnknownBlockingUi: true,
             armorBounds: _profile.ArmorBounds,
-            goldCoinBounds: _profile.GoldCoinBounds);
+            goldCoinBounds: _profile.GoldCoinBounds,
+            goldResourceBounds: _profile.GoldResourceBounds);
     }
 
     public void Dispose()

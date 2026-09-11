@@ -42,6 +42,7 @@ public partial class CapturePreviewWindow : System.Windows.Window
         CalibrationControls.IsEnabled = false;
         BuildProfileButton.IsEnabled = false;
         AnalyzeButton.IsEnabled = false;
+        ValidationButton.IsEnabled = false;
         OpenButton.IsEnabled = false;
         _png = null;
         Preview.Source = null;
@@ -104,6 +105,7 @@ public partial class CapturePreviewWindow : System.Windows.Window
         BuildProfileButton.IsEnabled = true;
         SaveButton.IsEnabled = true;
         AnalyzeButton.IsEnabled = File.Exists(Path.Combine(AppContext.BaseDirectory, "data", "vision", "profile.json"));
+        ValidationButton.IsEnabled = true;
         DrawRegions();
     }
 
@@ -154,6 +156,19 @@ public partial class CapturePreviewWindow : System.Windows.Window
         {
             Status.Text = $"离线识别失败：{exception.Message}";
         }
+    }
+
+    private void Validation_Click(object sender, RoutedEventArgs e)
+    {
+        if (_png is null)
+        {
+            Status.Text = "请先截取或导入 PNG 截图。";
+            return;
+        }
+
+        var window = new RecognitionValidationWindow { Owner = this };
+        window.LoadImage(_png, "当前截图");
+        window.ShowDialog();
     }
 
     private void Region_Down(object sender, MouseButtonEventArgs e)

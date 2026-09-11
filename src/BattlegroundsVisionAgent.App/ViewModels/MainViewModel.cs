@@ -9,6 +9,7 @@ using BattlegroundsVisionAgent.Core.Domain;
 using BattlegroundsVisionAgent.Core.Rules;
 using BattlegroundsVisionAgent.Core.Runtime;
 using BattlegroundsVisionAgent.Vision.Catalog;
+using BattlegroundsVisionAgent.Vision.Validation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CoreRunStatus = BattlegroundsVisionAgent.Core.Runtime.RunStatus;
@@ -24,6 +25,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly BlizzardCatalogSyncService _officialCatalogSync;
     private readonly AutomationRuntimeSession _automationRuntime;
     private readonly string _catalogDirectory;
+    private readonly RecognitionValidationSampleRepository _validationSamples;
     private readonly RunState _runState;
     private readonly SynchronizationContext? _uiContext;
 
@@ -42,6 +44,7 @@ public sealed partial class MainViewModel : ObservableObject
         _catalogUpdater = catalogUpdater ?? new CardCatalogUpdater();
         _officialCatalogSync = officialCatalogSync ?? new BlizzardCatalogSyncService();
         _catalogDirectory = Path.GetDirectoryName(Path.GetFullPath(_cardCatalog.DatabasePath))!;
+        _validationSamples = new RecognitionValidationSampleRepository();
         _runState = runState ?? new RunState(CoreRunStatus.Paused);
         _runState.StatusChanged += OnRunStateChanged;
         _uiContext = SynchronizationContext.Current;
@@ -185,11 +188,13 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(CatalogStatusText));
         try
         {
+            _runState.Pause();
+            await _automationRuntime.StopAsync();
             var result = await _catalogUpdater.UpdateFromPackageAsync(_catalogDirectory, packagePath, cancellationToken);
             LoadCatalogFromDatabase();
             CatalogOperationStatus = result.Applied
-                ? $"卡库已更新至 {result.Version}"
-                : $"卡库已是 {result.Version}，无需更新";
+                ? $"卡库已更新至 {result.Version} · {GetValidationCompatibilityText()}"
+                : $"卡库已是 {result.Version}，无需更新 · {GetValidationCompatibilityText()}";
             RunStatus = result.Applied ? "卡库更新完成" : "卡库无需更新";
             OnPropertyChanged(nameof(CatalogStatusText));
             return result;
@@ -219,8 +224,8 @@ public sealed partial class MainViewModel : ObservableObject
                 _catalogDirectory, cancellationToken);
             LoadCatalogFromDatabase();
             CatalogOperationStatus = result.Applied
-                ? $"官网卡库已同步至 {result.Version}"
-                : "官网卡库没有新变化";
+                ? $"官网卡库已同步至 {result.Version} · {GetValidationCompatibilityText()}"
+                : $"官网卡库没有新变化 · {GetValidationCompatibilityText()}";
             RunStatus = result.Applied ? "官网卡库同步完成" : "官网卡库无需更新";
             OnPropertyChanged(nameof(CatalogStatusText));
             return result;
@@ -269,11 +274,18 @@ public sealed partial class MainViewModel : ObservableObject
             CatalogVersionText = $"v{snapshot.Metadata.Version}";
             CatalogOperationStatus = $"已加载 · 更新于 {snapshot.Metadata.UpdatedAt:yyyy-MM-dd HH:mm}";
         }
+        CatalogOperationStatus += $" · {GetValidationCompatibilityText(snapshot)}";
         if (RunStatus == "未加载卡库")
         {
             RunStatus = IsCatalogLoaded ? "已加载卡库，待选择目标牌" : "未加载卡库";
         }
         OnPropertyChanged(nameof(CatalogStatusText));
+    }
+
+    private string GetValidationCompatibilityText(CardCatalogSnapshot? snapshot = null)
+    {
+        var report = _validationSamples.ValidateAgainstCatalog(snapshot ?? _cardCatalog.ReadSnapshot());
+        return report.SampleCount == 0 ? "暂无已确认正样本" : report.ToDisplayText();
     }
 
     public AutomationAction PlanForObservation(GameSnapshot snapshot)
