@@ -1,6 +1,6 @@
 # 酒馆战棋视觉规则助手：项目接续记录
 
-更新时间：2026-09-10
+更新时间：2026-09-11
 
 项目目录：`D:\代码\battlegrounds-vision-agent-clone`
 
@@ -125,6 +125,15 @@
 - 卡库版本化更新现在会按新包内的当前图片重建普通卡识别特征；新增卡牌或同卡 ID 换图后无需重新编译，下一次识别直接使用新特征。
 - 新增真实日志回归清单：`tests/fixtures/log-quality/live-logs.manifest.json`；新增质量分析、清单扫描、场景安全和卡库特征刷新测试。
 - 本轮验证：Core 53、Input 21、Replay 11、Vision 93 共 178 项测试通过；解决方案构建 0 警告、0 错误。
+
+### 版本自适应混合训练索引（2026-09-11）
+
+- 新增 `VisionTrainingIndexBuilder` 和 `VisionTrainingIndex`，从质量清单中只保留高质量、有场景标签的 `logs/live-frames` 原始帧；Unknown、Review、Garbage、重复帧、裁剪图不会进入索引。
+- 已基于当前日志生成 `tests/fixtures/log-quality/vision-training.index.json`：Shopping 114、Combat 23、Discover 37，共 174 张场景样本。
+- 索引记录清单来源提交、质量策略版本、当前卡库版本 `blizzard-1edd1e423cbdc1e9`、274 张卡和 SHA-256 指纹；卡库变更后可以直接比较指纹，不需要修改识别代码。
+- 新增 `OfflineVisionProbe --build-training-index`，可在不打开 EXE、不启动炉石、不调用外部 AI API 的情况下重新生成索引。
+- 当前产物是动态特征索引，不冒充“已经训练好的固定卡牌神经网络”：官方卡图由当前卡库动态生成特征，人工确认的运行时裁剪才会加入验证样本库。没有名称标注的历史截图只用于场景/质量训练，不能安全地产生卡牌名称。
+- 本轮验证：Core 53、Input 21、Replay 11、Vision 109 共 194 项测试通过；解决方案构建 0 警告、0 错误。
 
 ## 时间紧张时的离线测试流程
 

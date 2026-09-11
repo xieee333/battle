@@ -25,6 +25,17 @@ public sealed record ScreenshotCardResult(
     NormalizedRect Bounds,
     ScreenshotRecognitionStatus Status);
 
+/// <summary>
+/// Human-readable evidence for an offline or live recognition result. The
+/// evidence describes which configured region/feature family was used; it is
+/// informational and never relaxes the safety gates.
+/// </summary>
+public sealed record RecognitionEvidence(
+    string Area,
+    string Basis,
+    string Result,
+    double? Confidence = null);
+
 public sealed record ScreenshotRecognitionReport(
     string? SourcePath,
     int Width,
@@ -39,6 +50,8 @@ public sealed record ScreenshotRecognitionReport(
     bool IsActionable,
     IReadOnlyList<string> BlockingReasons)
 {
+    public IReadOnlyList<RecognitionEvidence> Evidence { get; init; } = [];
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
@@ -61,6 +74,20 @@ public sealed record ScreenshotRecognitionReport(
             $"金币：{FormatDigit(Gold)} · 酒馆等级：{FormatDigit(TavernTier)} · 护甲：{FormatDigit(Armor)}",
             $"安全状态：{(IsActionable ? "可行动" : "不会发送输入")}" 
         };
+
+        lines.Add("判断依据：");
+        if (Evidence.Count == 0)
+            lines.Add("  （无）");
+        else
+        {
+            foreach (var evidence in Evidence)
+            {
+                var confidence = evidence.Confidence is double value
+                    ? string.Create(CultureInfo.InvariantCulture, $" · {value:P1}")
+                    : string.Empty;
+                lines.Add($"  [{evidence.Area}] {evidence.Basis} => {evidence.Result}{confidence}");
+            }
+        }
 
         if (BlockingReasons.Count > 0)
             lines.Add($"阻断原因：{string.Join("、", BlockingReasons)}");
@@ -119,7 +146,16 @@ public sealed record ScreenshotRecognitionReport(
             null,
             [],
             false,
-            reasons);
+            reasons)
+        {
+            Evidence =
+            [
+                new RecognitionEvidence(
+                    "画面质量",
+                    "解码、尺寸、亮度、暗色比例、纹理和感知哈希质量门",
+                    quality.Reason)
+            ]
+        };
     }
 
     private static string FormatScene(SceneRecognition scene) =>
@@ -209,8 +245,89 @@ public static class ScreenshotRecognitionReportBuilder
             result.Armor,
             cards,
             actionable,
-            blockingReasons.Distinct(StringComparer.Ordinal).ToArray());
+            blockingReasons.Distinct(StringComparer.Ordinal).ToArray())
+        {
+            Evidence = BuildEvidence(quality, result, cards)
+        };
     }
+
+    private static IReadOnlyList<RecognitionEvidence> BuildEvidence(
+        FrameQualityResult quality,
+        SnapshotRecognitionResult result,
+        IReadOnlyList<ScreenshotCardResult> cards)
+    {
+        var metrics = quality.Metrics;
+        var evidence = new List<RecognitionEvidence>
+        {
+            new(
+                "画面质量",
+                "解码、尺寸、亮度、暗色比例、纹理和感知哈希质量门",
+                string.Create(CultureInfo.InvariantCulture,
+                    $"{quality.Reason}; {metrics.Width}×{metrics.Height}，亮度均值 {metrics.BrightnessMean:F1}，边缘比例 {metrics.EdgeRatio:P1}")),
+            new(
+                "场景",
+                "整帧感知哈希与当前 profile 的购物/战斗/发现模板比较",
+                result.Scene.GamePhase.ToString(),
+                result.Scene.Confidence),
+            new(
+                "金币",
+                "profile 金币资源 ROI，优先当前/上限数字，必要时回退数字模板",
+                FormatDigitResult(result.Gold),
+                result.Gold.Confidence),
+            new(
+                "酒馆等级",
+                "英雄头像本数 ROI 的金色星点连通组件（无可靠星点时保持未知）",
+                FormatDigitResult(result.TavernTier),
+                result.TavernTier.Confidence)
+        };
+
+        if (result.Armor is not null)
+        {
+            evidence.Add(new RecognitionEvidence(
+                "护甲",
+                "profile 护甲 ROI + armor 数字模板",
+                FormatDigitResult(result.Armor),
+                result.Armor.Confidence));
+        }
+
+        foreach (var card in cards)
+        {
+            var basis = card.Zone switch
+            {
+                CardZone.Hand => "手牌区当前只做占用/位置安全判断，未套用商店卡图匹配",
+                CardZone.Discover => "发现区当前只做候选位置安全判断，未套用商店卡图匹配",
+                _ => "卡面插画缩略图 ORB 特征、透视内点比例、描述子相似度和候选差值"
+            };
+            var resultText = card.Status switch
+            {
+                ScreenshotRecognitionStatus.Confirmed => card.NameZhCn ?? card.CardId,
+                ScreenshotRecognitionStatus.Review => "候选存在但置信度/差值不足",
+                _ when card.Kind == CardKind.Spell => "检测为法术版式；当前随从卡库不参与冒充匹配",
+                _ => "未达到占用或卡牌匹配安全阈值"
+            };
+            evidence.Add(new RecognitionEvidence(
+                $"{ZoneLabel(card.Zone)}槽位",
+                basis,
+                $"[{card.SlotIndex}] {resultText}",
+                card.Confidence));
+        }
+
+        return evidence;
+    }
+
+    private static string FormatDigitResult(DigitRecognition? digit) =>
+        digit?.Value is int value
+            ? string.Create(CultureInfo.InvariantCulture, $"{value}（已确认）")
+            : "未知（未通过模板/区域安全门）";
+
+    private static string ZoneLabel(CardZone zone) => zone switch
+    {
+        CardZone.Shop => "商店",
+        CardZone.Hand => "手牌",
+        CardZone.Board => "战场",
+        CardZone.Discover => "发现",
+        _ => "卡牌"
+    };
 }
 
 public sealed class ScreenshotRecognitionService : IDisposable

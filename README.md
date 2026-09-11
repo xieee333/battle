@@ -31,6 +31,17 @@ dotnet run --project .\tools\OfflineVisionProbe -- --validate-manifest `
 
 筛选结果会区分 `Shopping`、`Discover`、`Combat`、`Unknown` 和垃圾样本，并记录亮度、纹理、重复帧和排除原因。命令即使发现垃圾/待复核样本也会写出 manifest；退出码为 1 是提醒人工复核，不代表程序崩溃。后续把新截图放入 `logs` 后重复运行即可更新清单。
 
+在质量清单基础上，可以生成版本自适应训练索引：
+
+```powershell
+dotnet run --project .\tools\OfflineVisionProbe -- --build-training-index `
+  .\tests\fixtures\log-quality\live-logs.manifest.json `
+  --output .\tests\fixtures\log-quality\vision-training.index.json `
+  --repo-root . --catalog .\data\catalog\catalog.db
+```
+
+索引只收录 `Good + Include + 有场景标签 + logs/live-frames` 的原始帧，并记录当前卡库版本、卡牌数量和指纹；`--max-per-scene N` 可为每个场景做确定性的均匀抽样。它是混合识别的训练数据索引，不是绑定某一版本卡名的神经网络权重：卡牌名称始终从当前 `catalog.db` 动态读取，人工在识别校验窗口确认的卡槽样本才会作为可复用正样本。
+
 如果同时使用炉石传说盒子的快捷键（例如指向商店随从后按住并松开 W 购买），盒子仍然负责执行按键，本项目只读取执行前后的画面变化，不会抢占 W，也不会把一次刷新误判成购买。由于外部盒子没有向本项目提供按键事件，日志中的购买确认来自视觉证据；若卡牌本身仍识别为 UNKNOWN，只能确认“发生了购买/上场”，不能安全给出具体卡牌 ID。
 
 ## 卡库版本更新

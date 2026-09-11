@@ -61,6 +61,8 @@ public sealed class ScreenshotRecognitionReportTests
         Assert.Equal(6, report.Gold.Value);
         Assert.Equal(3, report.TavernTier.Value);
         Assert.Equal(12, report.Armor?.Value);
+        Assert.Contains(report.Evidence, evidence => evidence.Area == "场景");
+        Assert.Contains(report.Evidence, evidence => evidence.Area == "商店槽位");
     }
 
     [Fact]
@@ -133,5 +135,6 @@ public sealed class ScreenshotRecognitionReportTests
         Assert.Contains("战场", text);
         Assert.Contains("金币：未知", text);
         Assert.Contains("不会发送输入", text);
+        Assert.Contains("判断依据", text);
     }
 }

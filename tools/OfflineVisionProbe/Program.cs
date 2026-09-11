@@ -4,6 +4,7 @@ using BattlegroundsVisionAgent.Core.Domain;
 using BattlegroundsVisionAgent.Vision.Catalog;
 using BattlegroundsVisionAgent.Vision.Geometry;
 using BattlegroundsVisionAgent.Vision.Recognition;
+using BattlegroundsVisionAgent.Vision.Validation;
 using OpenCvSharp;
 
 if (args.Length < 1 || string.Equals(args[0], "--help", StringComparison.OrdinalIgnoreCase))
@@ -60,6 +61,9 @@ if (string.Equals(args[0], "--validate-manifest", StringComparison.OrdinalIgnore
     var repositoryRoot = args.Length == 4 ? Path.GetFullPath(args[3]) : Directory.GetCurrentDirectory();
     return ValidateManifest(Path.GetFullPath(args[1]), repositoryRoot);
 }
+
+if (string.Equals(args[0], "--build-training-index", StringComparison.OrdinalIgnoreCase))
+    return BuildTrainingIndex(args);
 
 if (string.Equals(args[0], "--recognize-screenshot", StringComparison.OrdinalIgnoreCase))
     return RecognizeScreenshot(args);
@@ -483,6 +487,7 @@ static void PrintUsage()
     Console.WriteLine("  OfflineVisionProbe --crop <image> <x> <y> <width> <height> <output>");
     Console.WriteLine("  OfflineVisionProbe --curate-logs <logsDirectory> --manifest <manifestPath> [--source-commit <sha>]");
     Console.WriteLine("  OfflineVisionProbe --validate-manifest <manifestPath> [--repo-root <path>]");
+    Console.WriteLine("  OfflineVisionProbe --build-training-index <qualityManifest> --output <indexPath> [--repo-root <path>] [--catalog <catalog.db>] [--validation-samples <directory>] [--max-per-scene <n>]");
     Console.WriteLine("  OfflineVisionProbe --recognize-screenshot <image> [--profile <profile.json>] [--catalog <catalog.db>] [--json <result.json>]");
 }
 
@@ -583,6 +588,87 @@ static int ValidateManifest(string manifestPath, string repositoryRoot)
     catch (Exception exception) when (exception is IOException or InvalidDataException or JsonException)
     {
         Console.Error.WriteLine($"Manifest 校验失败：{exception.Message}");
+        return 1;
+    }
+}
+
+static int BuildTrainingIndex(string[] arguments)
+{
+    if (arguments.Length < 4)
+    {
+        Console.Error.WriteLine("Usage: OfflineVisionProbe --build-training-index <qualityManifest> --output <indexPath> [--repo-root <path>] [--catalog <catalog.db>] [--validation-samples <directory>] [--max-per-scene <n>]");
+        return 2;
+    }
+
+    string? outputPath = null;
+    string? repositoryRoot = null;
+    string? catalogPath = null;
+    string? validationSamplesDirectory = null;
+    var maxPerScene = 0;
+    for (var index = 2; index < arguments.Length; index++)
+    {
+        if (index + 1 >= arguments.Length)
+        {
+            Console.Error.WriteLine("训练索引参数缺少值。");
+            return 2;
+        }
+
+        var option = arguments[index].ToLowerInvariant();
+        var value = arguments[++index];
+        switch (option)
+        {
+            case "--output":
+                outputPath = Path.GetFullPath(value);
+                break;
+            case "--repo-root":
+                repositoryRoot = Path.GetFullPath(value);
+                break;
+            case "--catalog":
+                catalogPath = Path.GetFullPath(value);
+                break;
+            case "--validation-samples":
+                validationSamplesDirectory = Path.GetFullPath(value);
+                break;
+            case "--max-per-scene" when int.TryParse(value, out var parsed) && parsed >= 0:
+                maxPerScene = parsed;
+                break;
+            default:
+                Console.Error.WriteLine($"未知训练索引参数：{arguments[index - 1]}");
+                return 2;
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(outputPath))
+    {
+        Console.Error.WriteLine("训练索引必须指定 --output。");
+        return 2;
+    }
+
+    try
+    {
+        repositoryRoot ??= Directory.GetCurrentDirectory();
+        catalogPath ??= Path.Combine(repositoryRoot, "data", "catalog", "catalog.db");
+        var manifest = LogCurationManifest.Load(Path.GetFullPath(arguments[1]));
+        var catalog = new CardCatalog(catalogPath).ReadSnapshot();
+        var validationDirectory = validationSamplesDirectory
+            ?? RecognitionValidationSampleRepository.DefaultDirectory;
+        var validationSamples = new RecognitionValidationSampleRepository(validationDirectory).LoadSamples();
+        var index = VisionTrainingIndexBuilder.Build(
+            manifest,
+            repositoryRoot,
+            catalog,
+            validationSamples,
+            maxPerScene);
+        index.Save(outputPath);
+        Console.WriteLine(index.ToText());
+        foreach (var group in index.SceneSamples.GroupBy(sample => sample.GamePhase).OrderBy(group => group.Key))
+            Console.WriteLine($"  {group.Key}: {group.Count()}");
+        Console.WriteLine($"索引已保存：{outputPath}");
+        return index.SceneSamples.Count == 0 ? 1 : 0;
+    }
+    catch (Exception exception) when (exception is IOException or InvalidDataException or DirectoryNotFoundException or ArgumentException)
+    {
+        Console.Error.WriteLine($"训练索引生成失败：{exception.Message}");
         return 1;
     }
 }
